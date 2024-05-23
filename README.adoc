@@ -1,0 +1,25 @@
+= nsa2-logging-example
+
+== Introduction
+
+This is a simple Spring Boot application that demonstrates how to change the logging level of a running application using the Spring Boot Actuator.
+
+== Running the application
+
+To run the application, execute the following command:
+
+[source,shellscript]
+----
+$ ./gradlew bootRun -args='--server.port=18080'
+----
+
+This will start the application on port 18080 to avoid conflicts with the default port of 8080.
+
+Navigate to the following URL to see logger levels for the application:
+
+http://localhost:18080/actuator/loggers
+
+
+== Tutorial
+
+link:./docs/part1/index.adoc[Part 1 - Logging in Spring Boot Application]

@@ -16,7 +16,14 @@ endif::[]
 
 == Introduction
 
-In this tutorial, we will learn how to log in a Spring Boot application. We will use the SLF4J and Logback libraries to log messages in the application. We will also learn how to configure the log level and log file location in the application.
+Logging is an essential part of any application. It helps developers to track the application's behavior, diagnose issues, and monitor performance. In this tutorial, we will learn how to log in a Spring Boot application. We will use the SLF4J and Logback libraries to log messages in the application. We will also learn how to configure the log level and log file location in the application using the application.yml and logback.xml files. Finally, we will learn how to change the log level at runtime using the Actuator endpoints.
+
+=== Centralized Logging series
+
+1. Part 1 - Logging in Spring Boot Application
+2. Part 2 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
+3. Part 3 - Centralized Logging with Fluent-bit and Elasticsearch(On-premise)
+4. Part 4 - Log Analysis with Apache Spark
 
 == Prerequisites
 
@@ -83,7 +90,7 @@ private static final Logger log = LoggerFactory.getLogger(LoggingExampleApplicat
 .run the application using the following command:
 [source,shellscript]
 ----
-./gradlew bootRun  --args="--server.port=18080 --spring.main.banner-mode=off"
+$ ./gradlew bootRun  --args="--server.port=18080 --spring.main.banner-mode=off"
 ----
 
 The application will start on port 18080. You can access the application by opening a web browser and navigating to http://localhost:18080.
@@ -103,12 +110,12 @@ The log message at DEBUG level is not printed in the console because the default
 
 .to enable debug log level, run the application using the following command:
 ----
-./gradlew bootRun  --args="--server.port=18080 --spring.main.banner-mode=off --logging.level.com.alexamy.nsa2=DEBUG"
+$ ./gradlew bootRun  --args="--server.port=18080 --spring.main.banner-mode=off --logging.level.com.alexamy.nsa2=DEBUG"
 ----
 
 Now we notice that there are some default configurations for logging in Spring Boot. The default log level is INFO, and the default log file location is the console. We can customize the log level and log file location by creating a logback.xml file in the src/main/resources directory of the project. Apart from the log level, the default message format is also provided by Spring Boot.
 
-To better understand Sprig Boot's default log format, please refer to the following link:
+For more information on Spring Boot logging, please refer to the following links:
 
 - https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.logging
 - https://docs.spring.io/spring-boot/how-to/logging.html
@@ -119,7 +126,6 @@ CONSOLE_LOG_PATTERN is defined in the org.springframework.boot.logging.logback.L
 
 Here is some of the code snippet of the default value of CONSOLE_LOG_PATTERN in defaults.xml:
 
-.CONSOLE_LOG_PATTERN in defaults.xml
 [source,xml]
 ----
 <property name="CONSOLE_LOG_PATTERN" value="${CONSOLE_LOG_PATTERN:-%clr(%d{${LOG_DATEFORMAT_PATTERN:-yyyy-MM-dd'T'HH:mm:ss.SSSXXX}}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr(%applicationName[%15.15t]){faint} %clr(${LOG_CORRELATION_PATTERN:-}){faint}%clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}}"/>
@@ -129,7 +135,7 @@ To simply put, the default log format is as follows:
 
 LOG_DATEFORMAT_PATTERN LOG_LEVEL_PATTERN PID applicationName thread logger message exception
 
-TIPS: To open files in the spring-boot jar file in IntelliJ IDEA, you can use the following steps:
+TIP: To open files in the spring-boot jar file in IntelliJ IDEA, you can use the following steps:
 
 1. Tap the Shift key twice to open the search dialog.
 2. Type the class name you want to open, such as LogbackLoggingSystem.
@@ -476,9 +482,7 @@ Here is an example of customizing logging in a Spring Boot application using the
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>logs/backup/nsa2-logging-example-%d{yyyy-MM-dd}-%2i.log</fileNamePattern>
-<!--            <fileNamePattern>mylog-%d{yyyy-MM-dd}.%i.txt</fileNamePattern>-->
             <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                <!-- or whenever the file size reaches 1MB -->
                 <maxFileSize>1MB</maxFileSize>
             </timeBasedFileNamingAndTriggeringPolicy>
             <maxHistory>10</maxHistory>
@@ -505,9 +509,17 @@ Alternatively, you can use the logback.xml file with --logging.config option to 
 $ ./gradlew bootRun --args="--server.port=18080 --logging.config=./logback.xml"
 ----
 
-Even though both application.yml and logback.xml files are used to customize logging in a Spring Boot application, to make things simple, it is recommended to use the application.yml file for logging configuration.
+Even though both application.yml and logback.xml files can be used to customize logging in a Spring Boot application, to make things simple, it is recommended to use the application.yml file for logging configuration.
 
 == Conclusion
 
 In this tutorial, we learned how to log in a Spring Boot application. We used the SLF4J and Logback libraries to log messages in the application. We also learned how to configure the log level and log file location in the application using the application.yml and logback.xml files. We also learned how to change the log level at runtime using the Actuator endpoints. By following the steps in this tutorial, you can customize logging in your Spring Boot application and manage log messages effectively.
-""
+
+In the next tutorial, we will learn how to set up centralized logging with Fluent-bit and Elasticsearch in a Kubernetes environment. Stay tuned!
+
+== References
+
+- https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.logging[Spring Boot Logging Features]
+- https://docs.spring.io/spring-boot/how-to/logging.html[How to use Spring Boot Logging]
+- https://logback.qos.ch/manual/configuration.html[Logback Configuration]
+- https://github.com/nsalexamy/nsa2-logging-example[Source code for the project]
