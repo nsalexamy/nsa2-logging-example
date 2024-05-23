@@ -73,7 +73,8 @@ LoggingExampleApplication.java is the main class of the application. It contains
 .LoggingExampleApplication.java
 [source,java]
 ----
-include::{sourcedir}/com/alexamy/nsa2/example/logging/LoggingExampleApplication.java[]
+// include::{sourcedir}/com/alexamy/nsa2/example/logging/LoggingExampleApplication.java[]
+include::LoggingExampleApplication.java[]
 ----
 
 In the LoggingExampleApplication java file, there are two log messages: one at the INFO level and one at the DEBUG level. The INFO level log message is printed when the application starts, and the DEBUG level log message is printed when the application stops.
