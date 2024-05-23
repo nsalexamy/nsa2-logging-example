@@ -1,8 +1,18 @@
 = Part 1 - Logging in Spring Boot Application
 
+ifdef::env-github[]
+:projectroot: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example
+:sourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/src/main/java
+:resourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/src/main/resources
+endif::[]
+
+ifndef::env-github[]
 :projectroot: ../..
 :sourcedir: ../../src/main/java
 :resourcedir: ../../src/main/resources
+endif::[]
+
+
 
 == Introduction
 
@@ -35,6 +45,7 @@ The benefits of Convention over Configuration are:
 === Logging Application
 
 There are two key files in the project:
+
 - build.gradle.kts
 - LoggingExampleApplication.java
 
