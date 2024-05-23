@@ -2,7 +2,8 @@
 
 ifdef::env-github[]
 :projectroot: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main
-:sourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/java
+// :sourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/java
+:sourcedir: .
 :resourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/resources
 endif::[]
 
@@ -98,17 +99,18 @@ And --spring.main.banner-mode=off is used to disable the Spring Boot banner when
 
 When the application starts, you will see the following log messages in the console:
 ----
-2024-05-21T16:12:12.452-07:00  INFO 14953 --- [           main] c.a.n.e.l.LoggingExampleApplication      : Starting LoggingExampleApplication using Java 17.0.11 with PID 14953 (/Users/younggyukim/Dev/jhipster/nsa2-logging-example/build/classes/java/main started by younggyukim in /Users/younggyukim/Dev/jhipster/nsa2-logging-example)
-2024-05-21T16:12:12.460-07:00  INFO 14953 --- [           main] c.a.n.e.l.LoggingExampleApplication      : No active profile set, falling back to 1 default profile: "default"
-2024-05-21T16:12:13.950-07:00  INFO 14953 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint(s) beneath base path '/actuator'
-2024-05-21T16:12:14.355-07:00  INFO 14953 --- [           main] o.s.b.web.embedded.netty.NettyWebServer  : Netty started on port 18080
-2024-05-21T16:12:14.383-07:00  INFO 14953 --- [           main] c.a.n.e.l.LoggingExampleApplication      : Started LoggingExampleApplication in 2.481 seconds (process running for 2.991)
+2024-05-23T00:29:50.132-07:00  INFO 51557 --- [nsa2-logging-example] [           main] c.a.n.e.l.LoggingExampleApplication      : Starting LoggingExampleApplication using Java 17.0.11 with PID 51557 (/Users/younggyukim/Dev/jhipster/nsa2-logging-example/build/classes/java/main started by younggyukim in /Users/younggyukim/Dev/jhipster/nsa2-logging-example)
+2024-05-23T00:29:50.140-07:00  INFO 51557 --- [nsa2-logging-example] [           main] c.a.n.e.l.LoggingExampleApplication      : No active profile set, falling back to 1 default profile: "default"
+2024-05-23T00:29:51.842-07:00  INFO 51557 --- [nsa2-logging-example] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 2 endpoint(s) beneath base path '/actuator'
+2024-05-23T00:29:52.294-07:00  INFO 51557 --- [nsa2-logging-example] [           main] o.s.b.web.embedded.netty.NettyWebServer  : Netty started on port 18080
+2024-05-23T00:29:52.320-07:00  INFO 51557 --- [nsa2-logging-example] [           main] c.a.n.e.l.LoggingExampleApplication      : Started LoggingExampleApplication in 2.832 seconds (process running for 3.399)
+2024-05-23T00:29:52.324-07:00  INFO 51557 --- [nsa2-logging-example] [           main] c.a.n.e.l.LoggingExampleApplication      : Application started successfully.
 
 ----
 
 The log message at DEBUG level is not printed in the console because the default log level is INFO. To enable the DEBUG level log message, we need to customize the log level in the application.
 
-.to enable debug log level, run the application using the following command:
+.to enable DEBUG log level, you can run the application using the following command:
 ----
 $ ./gradlew bootRun  --args="--server.port=18080 --spring.main.banner-mode=off --logging.level.com.alexamy.nsa2=DEBUG"
 ----

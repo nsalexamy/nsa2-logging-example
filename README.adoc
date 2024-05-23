@@ -22,4 +22,4 @@ http://localhost:18080/actuator/loggers
 
 == Tutorial
 
-link:./docs/part1/index.adoc[Part 1 - Logging in Spring Boot Application]
+link:./docs/part-1/index.adoc[Part 1 - Logging in Spring Boot Application]
