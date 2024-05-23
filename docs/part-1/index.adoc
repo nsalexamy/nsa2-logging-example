@@ -2,8 +2,7 @@
 
 ifdef::env-github[]
 :projectroot: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main
-// :sourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/java
-:sourcedir: .
+:sourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/java
 :resourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/resources
 endif::[]
 
@@ -73,8 +72,7 @@ LoggingExampleApplication.java is the main class of the application. It contains
 .LoggingExampleApplication.java
 [source,java]
 ----
-// include::{sourcedir}/com/alexamy/nsa2/example/logging/LoggingExampleApplication.java[]
-include::LoggingExampleApplication.java[]
+include::{sourcedir}/com/alexamy/nsa2/example/logging/LoggingExampleApplication.java[]
 ----
 
 In the LoggingExampleApplication java file, there are two log messages: one at the INFO level and one at the DEBUG level. The INFO level log message is printed when the application starts, and the DEBUG level log message is printed when the application stops.
