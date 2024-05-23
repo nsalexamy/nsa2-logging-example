@@ -499,3 +499,4 @@ Even though both application.yml and logback.xml files are used to customize log
 == Conclusion
 
 In this tutorial, we learned how to log in a Spring Boot application. We used the SLF4J and Logback libraries to log messages in the application. We also learned how to configure the log level and log file location in the application using the application.yml and logback.xml files. We also learned how to change the log level at runtime using the Actuator endpoints. By following the steps in this tutorial, you can customize logging in your Spring Boot application and manage log messages effectively.
+""
