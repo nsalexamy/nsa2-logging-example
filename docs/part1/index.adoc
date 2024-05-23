@@ -1,9 +1,9 @@
 = Part 1 - Logging in Spring Boot Application
 
 ifdef::env-github[]
-:projectroot: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example
-:sourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/src/main/java
-:resourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/src/main/resources
+:projectroot: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main
+:sourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/java
+:resourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/resources
 endif::[]
 
 ifndef::env-github[]
