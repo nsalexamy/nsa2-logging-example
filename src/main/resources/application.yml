@@ -14,20 +14,20 @@ management:
       enabled: true
 
 
-logging:
-  pattern:
-    console: "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
-    file: "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
-
-  level:
-    root: INFO
-    com.alexamy.nsa2: DEBUG
-
-  file:
-    name: logs/nsa2-logging-example.log
-
-  logback:
-    rollingpolicy:
-      max-history: 10
-      file-name-pattern: logs/backup/nsa2-logging-example.log.%d{yyyy-MM-dd}.%i
-      max-file-size: 1MB
+#logging:
+#  pattern:
+#    console: "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
+#    file: "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
+#
+#  level:
+#    root: INFO
+#    com.alexamy.nsa2: DEBUG
+#
+#  file:
+#    name: logs/nsa2-logging-example.log
+#
+#  logback:
+#    rollingpolicy:
+#      max-history: 10
+#      file-name-pattern: logs/backup/nsa2-logging-example.log.%d{yyyy-MM-dd}.%i
+#      max-file-size: 1MB

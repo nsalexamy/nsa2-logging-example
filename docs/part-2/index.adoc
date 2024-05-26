@@ -1,0 +1,551 @@
+= Part 2 - Deploying Spring Boot Application to Kubernetes
+
+ifdef::env-github[]
+:projectroot: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main
+:sourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/java
+:resourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/resources
+:helmchartdir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/helm/nsa2-logging-example
+endif::[]
+
+ifndef::env-github[]
+:projectroot: ../..
+:sourcedir: ../../src/main/java
+:resourcedir: ../../src/main/resources
+:helmchartdir: ../../src/main/helm/nsa2-logging-example
+endif::[]
+
+In this tutorial, we will be deploying the Spring Boot application to Kubernetes. We will be using the Spring Boot application created in Part 1 of the series. After we create a Docker image of the application, we are going to push it to Docker Hub so that we can use the Docker image on a Kubernetes cluster. We are also going to look at how to deploy the application using the kubectl command, Kubernetes manifest files, and Helm.
+
+=== Centralized Logging series
+
+This tutorial is the second part of the Centralized Logging series. The series covers the following topics:
+
+1. Part 1 - Logging in Spring Boot Application
+2. Part 2 - Deploying Spring Boot Application to Kubernetes
+3. Part 3 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
+4. Part 4 - Centralized Logging with Fluent-bit and Elasticsearch(On-premise)
+5. Part 5 - Log Analysis with Apache Spark
+
+=== Prerequisites
+
+1. Kubernetes Cluster
+2. kubectl
+3. Helm
+4. Docker
+5. Java 17
+6. Gradle
+
+This tutorial does NOT include the installation of Elasticsearch and Kibana. This topic will be covered in a separate tutorial.
+
+=== Step 1 - Create a Spring Boot Application
+
+We will be using the same Spring Boot application that we used in Part 1 of the series. The application logs the request and response of the REST API.
+
+The application can be found at link:https://github.com/nsalexamy/nsa2-logging-example[GitHub].
+
+=== Step 2 - Create a Docker Image
+
+In this section, to create a Docker image, we will be using the Dockerfile and docker-compose file.
+
+.build the application
+[source,shell]
+----
+$ ./gradlew clean build
+----
+
+.src/main/docker/Dockerfile
+[source,docker]
+----
+include::{projectroot}/src/main/docker/Dockerfile[]
+----
+
+In the Dockerfile, we are using eclipse-temurin to build the image. The image is based on the OpenJDK 17 image. We are copying the jar file to the image and running the jar file.
+
+.docker-compose.yml
+[source,yaml]
+----
+version: '3.7'
+
+services:
+  nsa2-logging-example:
+    build:
+      context: .
+      dockerfile: src/main/docker/Dockerfile
+      labels:
+        - "provider=alexamy"
+
+
+    image: nsa2-logging-example
+
+    ports:
+      - "18080:8080"
+
+----
+
+In the docker-compose file, we are building the image using the Dockerfile. We are also exposing the port 18080.
+
+Notice that we are using the label `provider=alexamy`. This label will be used to filter the images in the next section.
+
+To build the image, run the following command:
+[source,shell]
+----
+$ docker-compose build
+----
+
+To check the image, run the following command:
+[source,shell]
+----
+$ docker image ls -f label=provider=alexamy
+
+REPOSITORY             TAG       IMAGE ID       CREATED          SIZE
+nsa2-logging-example   latest    36e9603938ca   40 minutes ago   277MB
+
+----
+
+To run the image, run the following command:
+[source,shell]
+----
+$ docker-compose up -d
+----
+
+To check the running container, run the following command:
+[source,shell]
+----
+# to see log messages from the container
+$ docker-compose logs
+
+# to see logger levels defined by the application
+$ curl http://localhost:18080/actuator/loggers | jq '.loggers | to_entries[] | select(.key |  startswith("com.alexamy.nsa2")) '
+----
+
+To clean up the container, run the following command:
+[source,shell]
+----
+$ docker-compose down
+----
+
+=== Step 3 - Push the Docker image
+
+==== For Mac Arm64 users
+
+For this section, we will be using the latest version of Docker composed of Mac Arm64.
+
+Since Docker images created on Mac Arm64 are not compatible with Docker Hub, we need to build the image with platform option.
+
+To inspect the image and then check the platform, run the following command:
+[source,shell]
+----
+$ docker image inspect nsa2-logging-example:latest | jq '.[0].Os, .[0].Architecture'
+
+"linux"
+"arm64"
+----
+
+If your Docker image created based on arm64, you need to remove the Docker image and rebuild it with the platform option.
+
+To build the image with the platform option, edit the docker-compose file and add the platform option.
+[source,yaml]
+----
+version: '3.9'  # if not already present, version 3.9 or higher is needed
+
+services:
+  nsa2-logging-example:
+    build:
+      context: .
+      dockerfile: src/main/docker/Dockerfile
+      platform: linux/amd64
+      labels:
+        - "provider=alexamy"
+
+
+    image: nsa2-logging-example
+
+    ports:
+      - "18080:8080"
+----
+
+To remove the Docker image and rebuild it with the platform option, run the following command:
+
+[source,shell]
+----
+$ docker image rm nsa2-logging-example:latest
+$ docker-compose build
+----
+
+Make sure that the Docker image is built based on the platform linux/amd64 before pushing it to Docker Hub.
+
+[source,shell]
+----
+$ docker image inspect nsa2-logging-example | jq '.[0] | .Os, .Architecture'
+
+"linux"
+"amd64"
+----
+
+====  Push the Docker image to Docker Hub
+
+To push the Docker image to Docker Hub, run the following command:
+
+.login to Docker Hub
+[source,shell]
+----
+$ docker login
+
+Username: <username>
+Password: <password>
+
+Login Succeeded
+----
+
+.tag the Docker image
+[source,shell]
+----
+$ docker tag nsa2-logging-example:latest <username>/nsa2-logging-example:latest
+
+$ docker image ls -f label=provider=alexamy
+
+REPOSITORY                      TAG       IMAGE ID       CREATED          SIZE
+nsa2-logging-example            latest    b04e7a076f6b   11 minutes ago   285MB
+credemol/nsa2-logging-example   latest    b04e7a076f6b   11 minutes ago   285MB
+
+----
+
+In this example, we are tagging the image with the username `credemol`.
+
+.push the Docker image
+[source,shell]
+----
+$ docker push credemol/nsa2-logging-example:latest
+----
+
+====  Push the Docker image to GitHub Container Registry
+
+To push the Docker image to Docker Hub, personal access token is required. To create a personal access token, go to GitHub -> Settings -> Developer settings -> Personal access tokens -> Generate new token.
+
+Or you can use the following link:
+link:https://docs.github.com/en/enterprise-server@3.9/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens[Create a personal access token]
+
+Make sure to select the `read:packages` and `write:packages` scopes.
+
+To login to GitHub Container Registry, run the following command:
+[source,shell]
+----
+$ echo <personal-access-token> | docker login ghcr.io -u <username> --password-stdin
+----
+
+I saved my personal access token in the environment variable  `GITHUB_TOKEN` and my username in the environment variable `GITHUB_USERNAME`.
+So the command will be:
+[source,shell]
+----
+$ echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
+
+Login Succeeded
+----
+
+To tag the Docker image, run the following command:
+[source,shell]
+----
+$ docker tag nsa2-logging-example:latest ghcr.io/$GITHUB_USERNAME/nsa2-logging-example:latest
+
+$ docker image ls -f label=provider=alexamy
+
+REPOSITORY                              TAG       IMAGE ID       CREATED        SIZE
+credemol/nsa2-logging-example            latest    b04e7a076f6b   27 hours ago   285MB
+nsa2-logging-example                     latest    b04e7a076f6b   27 hours ago   285MB
+ghcr.io/nsalexamy/nsa2-logging-example   latest    b04e7a076f6b   27 hours ago   285MB
+
+----
+
+To push the Docker image to GitHub Container Registry, run the following command:
+[source,shell]
+----
+$ docker push ghcr.io/$GITHUB_USERNAME/nsa2-logging-example:latest
+----
+
+Now that we have pushed the Docker image to Docker Hub and GitHub Container Registry, we can deploy the application to Kubernetes.
+
+
+=== Step 4 - Deploy the Spring Boot Application to Kubernetes
+
+In this section, we will be deploying the Spring Boot application to Kubernetes. We will be using the kubectl command to run the application and create a deployment and service. We will also be using Helm to create a Helm chart for the application.
+
+==== Create a namespace
+From this point on, we will be using the namespace `nsa2` for the deployment.
+
+To create a namespace, run the following command:
+[source,shell]
+----
+$ kubectl create namespace nsa2
+----
+
+==== Using kubectl command
+
+kubectl run command is used to run a particular image on the Kubernetes cluster. It does not create a deployment or a replica set. It creates a pod with the image specified. It does not create a service either.
+
+To run the application for testing purposes, we can use the kubectl command.
+[source,shell]
+----
+$ kubectl run --image=credemol/nsa2-logging-example:latest nsa2-logging-example --port=8080 --rm
+----
+
+To check the running pods, run the following command:
+[source,shell]
+----
+$ kubectl get pods
+
+NAME                   READY   STATUS    RESTARTS   AGE
+nsa2-logging-example   1/1     Running   0          17s
+----
+
+To check the logs of the pod, run the following command:
+[source,shell]
+----
+$ kubectl logs nsa2-logging-example
+----
+
+To delete the pod, run the following command:
+[source,shell]
+----
+$ kubectl delete pod nsa2-logging-example
+----
+
+==== Using Kubernetes manifest files - deployment and service
+
+To create a Kubernetes deployment and service, we will be using the deployment and service files.
+
+- src/main/k8s/deployment.yaml
+- src/main/k8s/service.yaml
+
+===== deployment.yaml
+We can simply create a deployment file using the following kubeclt command:
+[source,shell]
+----
+$ mkdir -p src/main/k8s
+
+$ kubectl create deployment nsa2-logging-example --image=credemol/nsa2-logging-example:latest --namespace=nsa2 --dry-run=client -o yaml > src/main/k8s/deployment.yaml
+----
+
+The deployment file will look like this:
+
+.src/main/k8s/deployment.yaml
+[source,yaml]
+----
+include::{projectroot}/src/main/k8s/deployment.yaml[]
+----
+
+We can edit the deployment file to add the environment variables and the liveness and readiness probes. But for this tutorial, we will be using the default deployment file.
+
+===== service.yaml
+
+To create a service file, run the following command:
+[source,shell]
+----
+$ kubectl create service clusterip nsa2-logging-example --tcp=8080:8080 --namespace=nsa2 --dry-run=client -o yaml > src/main/k8s/service.yaml
+----
+
+The service file will look like this:
+
+.src/main/k8s/service.yaml
+[source,yaml]
+----
+include::{projectroot}/src/main/k8s/service.yaml[]
+----
+
+Like the deployment file, we can edit the service file to add the labels and selectors. But for this tutorial, we will be using the default service file.
+
+===== Deploy the application
+
+To deploy the application, run the following command:
+[source,shell]
+----
+$ kubectl apply -f src/main/k8s/deployment.yaml
+$ kubectl apply -f src/main/k8s/service.yaml
+----
+
+To check the running pods, run the following command:
+[source,shell]
+----
+$ kubectl get all -n nsa2
+
+NAME                                       READY   STATUS    RESTARTS   AGE
+pod/nsa2-logging-example-5858746cf-2v9w6   1/1     Running   0          23s
+
+NAME                           TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)    AGE
+service/nsa2-logging-example   ClusterIP   10.0.77.174   <none>        8080/TCP   11s
+
+NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/nsa2-logging-example   1/1     1            1           23s
+
+NAME                                             DESIRED   CURRENT   READY   AGE
+replicaset.apps/nsa2-logging-example-5858746cf   1         1         1       23s
+
+----
+
+To check the logs of the pod, run the following command:
+[source,shell]
+----
+$ kubectl logs deployments/nsa2-logging-example -n nsa2
+----
+
+To test the application locally, run the following command:
+[source,shell]
+----
+$ kubectl -n nsa2 port-forward svc/nsa2-logging-example 18080:8080
+
+# run the following command in a separate terminal.
+$ curl http://localhost:18080/actuator/loggers | jq '.loggers | to_entries[] | select(.key |  startswith("com.alexamy.nsa2")) '
+----
+
+To clean up the deployment and service, run the following command:
+[source,shell]
+----
+$ kubectl delete -f src/main/k8s/deployment.yaml
+$ kubectl delete -f src/main/k8s/service.yaml
+----
+
+==== Using a Helm chart
+
+Helm is a package manager for Kubernetes. Helm uses a packaging format called charts. A chart is a collection of files that describe a related set of Kubernetes resources.
+
+For more information on how to create a Helm chart, refer to the links following
+
+- link:https://helm.sh/docs/intro/quickstart/[Helm Quickstart]
+- link:https://helm.sh/docs/chart_template_guide/getting_started/[Getting Started]
+
+In this section, we will be creating a Helm chart to deploy the Spring Boot application to Kubernetes.
+
+To create a Helm chart, run the following command:
+[source,shell]
+----
+$ mkdir -p src/main/helm && cd $_
+
+$ helm create nsa2-logging-example
+----
+
+The Helm chart will be created in the directory `src/main/helm/nsa2-logging-example`. The directory structure will look like this:
+[source,shell]
+----
+src/main/helm/nsa2-logging-example
+├── Chart.yaml
+├── charts
+├── templates
+│   ├── NOTES.txt
+│   ├── _helpers.tpl
+│   ├── deployment.yaml
+│   ├── hpa.yaml
+│   ├── ingress.yaml
+│   ├── service.yaml
+│   ├── serviceaccount.yaml
+│   └── tests
+│       └── test-connection.yaml
+└── values.yaml
+----
+
+We will be using the deployment and service templates from the Helm chart. We will also be using the values.yaml file to add the environment variables.
+
+.values.yaml - change the image repository to your Docker image
+[source,yaml]
+----
+# lines 7 to 11
+include::{helmchartdir}/values.yaml[lines=7..11]
+----
+
+.values.yaml - change service port
+[source,yaml]
+----
+# lines 42 to 44
+include::{helmchartdir}/values.yaml[lines=42..44]
+----
+
+.values.yaml - update liveliness and readiness probes
+[source,yaml]
+----
+# lines 74 to 83
+include::{helmchartdir}/values.yaml[lines=74..83]
+----
+
+In terms of image repository, notice that repository is `credemol/nsa2-logging-example` and tag is `latest`.
+When you set repository as `credemol/nsa2-logging-example:latest` and tag as blank, the default deployment template will use app_version defined in Chart.yaml as the tag which is 1.16.0 in this case. So the full image name will be `credemol/nsa2-logging-example:latest:1.16.0` which is not what we want. For this reason, DO NOT set image tag as blank.
+
+You can check how the image repository and tag are used in the deployment template by looking at the deployment.yaml file in templates directory.
+
+.templates/deployment.yaml
+[source,yaml]
+----
+# line 37 - Not modified
+include::{helmchartdir}/templates/deployment.yaml[lines=37]
+----
+
+When you want to test the template rendering, but not actually install anything, you can use the `--dry-run` and `--debug` flags. The `--dry-run` flag will render the templates without actually installing anything. The `--debug` flag will print out the rendered templates.
+
+[source,shell]
+----
+$  helm install -n nsa2 --debug --dry-run nsa2-logging-example ./src/main/helm/nsa2-logging-example
+----
+
+After making sure that the templates are rendered correctly, we can install the Helm chart.
+
+[source,shell]
+----
+$ helm install -n nsa2 nsa2-logging-example ./src/main/helm/nsa2-logging-example
+
+NAME: nsa2-logging-example
+LAST DEPLOYED: Sat May 25 22:18:28 2024
+NAMESPACE: nsa2
+STATUS: deployed
+REVISION: 1
+NOTES:
+1. Get the application URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace nsa2 -l "app.kubernetes.io/name=nsa2-logging-example,app.kubernetes.io/instance=nsa2-logging-example" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace nsa2 $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace nsa2 port-forward $POD_NAME 8080:$CONTAINER_PORT
+
+----
+
+To check what types of Kubernetes resources were created, run the following command:
+[source,shell]
+----
+$ kubectl get all -n nsa2
+
+NAME                                        READY   STATUS    RESTARTS   AGE
+pod/nsa2-logging-example-5c8c465555-lhcss   1/1     Running   0          36s
+
+NAME                           TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+service/nsa2-logging-example   ClusterIP   10.0.239.101   <none>        8080/TCP   37s
+
+NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/nsa2-logging-example   1/1     1            1           37s
+
+NAME                                              DESIRED   CURRENT   READY   AGE
+replicaset.apps/nsa2-logging-example-5c8c465555   1         1         1       37s
+
+----
+
+In addition, Service Account was created. The Service Account is used to provide an identity for processes that run in a Pod. Service Account can be seen in the output of the following command:
+[source,shell]
+----
+$ kubectl get serviceaccount -n nsa2
+----
+
+To test the application locally, run the following command:
+[source,shell]
+----
+$ kubectl -n nsa2 port-forward svc/nsa2-logging-example 18080:8080
+
+# run the following command in a separate terminal.
+$ curl http://localhost:18080/actuator/loggers | jq '.loggers | to_entries[] | select(.key |  startswith("com.alexamy.nsa2")) '
+----
+
+
+To delete all the resources created by the Helm chart, run the following command:
+[source,shell]
+----
+$ helm uninstall -n nsa2 nsa2-logging-example
+----
+
+== Conclusion
+
+In this tutorial, we deployed the Spring Boot application to Kubernetes. We also looked at how to push the Docker image to Docker Hub and GitHub Container Registry. We used the kubectl command to run the application and create a deployment and service. We also used Helm to create a Helm chart for the application.
+
+In the next tutorial, we will be setting up Fluent-bit and Elasticsearch on Kubernetes to collect and store the logs from the Spring Boot application.

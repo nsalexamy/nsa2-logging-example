@@ -1,0 +1,4 @@
+= Part 3 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
+
+In this tutorial, we will be setting up centralized logging with Elasticsearch, Fluent-bit and Kibana on Kubernetes. We will be using Fluent-bit to collect and forward the logs to Elasticsearch. Kibana will be used to visualize the logs.
+

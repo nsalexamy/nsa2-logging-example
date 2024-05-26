@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: nsa2-logging-example
+  name: nsa2-logging-example
+  namespace: nsa2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nsa2-logging-example
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: nsa2-logging-example
+    spec:
+      containers:
+      - image: credemol/nsa2-logging-example:latest
+        name: nsa2-logging-example
+        resources: {}
+status: {}

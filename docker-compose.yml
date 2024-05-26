@@ -1,0 +1,27 @@
+version: '3.9'  # if not already present, version 3.9 or higher is needed
+
+services:
+  nsa2-logging-example:
+    build:
+      context: .
+      dockerfile: src/main/docker/Dockerfile
+      labels:
+        - "provider=alexamy"
+      platforms:
+        - linux/amd64
+
+
+
+    image: nsa2-logging-example
+
+    ports:
+      - "18080:8080"
+
+#  nsa2-logging-example-slim:
+#    build:
+#      context: .
+#      dockerfile: src/main/docker/Dockerfile-multi-stage-build
+#
+#    image: nsa2-logging-example-slim
+#    ports:
+#      - "28080:8080"
