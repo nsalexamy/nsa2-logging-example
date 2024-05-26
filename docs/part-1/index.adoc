@@ -20,10 +20,13 @@ Logging is an essential part of any application. It helps developers to track th
 
 === Centralized Logging series
 
+This tutorial is the first part of the Centralized Logging series. The series covers the following topics:
+
 1. Part 1 - Logging in Spring Boot Application
-2. Part 2 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
-3. Part 3 - Centralized Logging with Fluent-bit and Elasticsearch(On-premise)
-4. Part 4 - Log Analysis with Apache Spark
+2. Part 2 - Deploying Spring Boot Application to Kubernetes
+3. Part 3 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
+4. Part 4 - Centralized Logging with Fluent-bit and Elasticsearch(On-premise)
+5. Part 5 - Log Analysis with Apache Spark
 
 == Prerequisites
 
