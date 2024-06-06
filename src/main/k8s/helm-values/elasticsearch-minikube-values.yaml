@@ -1,0 +1,99 @@
+replicas: 3
+minimumMasterNodes: 3
+
+esConfig:
+  elasticsearch.yml: |
+    xpack.security.enabled: "true"
+    xpack.security.transport.ssl.enabled: "true"
+    xpack.security.transport.ssl.supported_protocols: "TLSv1.2"
+    xpack.security.transport.ssl.client_authentication: "none"
+    xpack.security.transport.ssl.key: "/usr/share/elasticsearch/config/certs/tls.key"
+    xpack.security.transport.ssl.certificate: "/usr/share/elasticsearch/config/certs/tls.crt"
+    xpack.security.transport.ssl.certificate_authorities: "/usr/share/elasticsearch/config/certs/my-ca.crt"
+    xpack.security.transport.ssl.verification_mode: "certificate"
+    xpack.security.http.ssl.enabled: "true"
+    xpack.security.http.ssl.supported_protocols: "TLSv1.2"
+    xpack.security.http.ssl.client_authentication: "none"
+    xpack.security.http.ssl.key: "/usr/share/elasticsearch/config/certs/tls.key"
+    xpack.security.http.ssl.certificate: "/usr/share/elasticsearch/config/certs/tls.crt"
+    xpack.security.http.ssl.certificate_authorities: "/usr/share/elasticsearch/config/certs/my-ca.crt"
+    #discovery:
+    #  type: single-node
+    #
+    #cluster.initial_master_nodes: []
+
+    discovery.seed_hosts: 
+      - elasticsearch-master-headless:9300
+      #- elasticsearch-master-0:9300
+      #- elasticsearch-master-1:9300
+      #- elasticsearch-master-2:9300
+    
+    cluster.initial_master_nodes: 
+      - elasticsearch-master-0
+      - elasticsearch-master-1
+      - elasticsearch-master-2
+    
+    
+
+createCert: false
+
+clusterHealthCheckParams: "wait_for_status=red&timeout=1s"
+
+extraEnvs:
+  - name: "ELASTIC_PASSWORD"
+    valueFrom:
+      secretKeyRef:
+        name: "elasticsearch-master-credentials"
+        key: "password"
+  - name: "ELASTIC_USERNAME"
+    valueFrom:
+      secretKeyRef:
+        name: "elasticsearch-master-credentials"
+        key: "username"
+
+  #- name: "cluster.initial_master_nodes"
+  #  value: ""
+
+secret:
+  enabled: false
+
+secretMounts:
+  - name: "elastic-certificates"
+    secretName: "elasticsearch-master-certs"
+    path: "/usr/share/elasticsearch/config/certs"
+    defaultMode: "0755"
+
+# This settings are for Minikube
+resources:
+  requests:
+    cpu: "500m"
+    memory: "2Gi"
+  limits:
+    cpu: "500m"
+    memory: "2Gi"
+
+# This settings are for Minikube.
+volumeClaimTemplate:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 8Gi
+
+#nodeSelector:
+#  agentpool: depnodes
+
+#extraVolumes:
+#  - name: ca-pem-store
+#    configMap:
+#      name: ca-pem-store
+# - name: extras
+#   emptyDir: {}
+
+#extraVolumeMounts:
+#  - name: ca-pem-store
+#    mountPath: /etc/ssl/certs/elasticsearch-master.pem
+#    subPath: elasticsearch-master.pem
+#    readOnly: false
+# - name: extras
+#   mountPath: /usr/share/extras
+#   readOnly: true

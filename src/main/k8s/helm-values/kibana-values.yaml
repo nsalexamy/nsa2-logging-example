@@ -1,0 +1,16 @@
+elasticsearchCertificateAuthoritiesFile: my-ca.crt
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "2Gi"
+  limits:
+    cpu: "500m"
+    memory: "2Gi"
+
+#healthCheckPath: "/api/status"
+
+protocol: https
+
+nodeSelector:
+  agentpool: depnodes

@@ -1,0 +1,181 @@
+
+image:
+  tag: "3.0.6"
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+priorityClassName: "high-priority"
+
+env:
+  - name: ELASTIC_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: elasticsearch-master-credentials
+        key: password
+
+extraVolumes:
+  - name: elasticsearch-master-ca-store
+    configMap:
+      name: elasticsearch-master-ca-store
+
+extraVolumeMounts:
+  - name: elasticsearch-master-ca-store
+    mountPath: /etc/ssl/certs/elasticsearch-master.pem
+    subPath: elasticsearch-master.pem
+    readOnly: false
+
+config:
+  service: |
+    [SERVICE]
+        Daemon Off
+        Flush {{ .Values.flush }}
+        Log_Level {{ .Values.logLevel }}
+        Parsers_File /fluent-bit/etc/parsers.conf
+        Parsers_File /fluent-bit/etc/conf/custom_parsers.conf
+        HTTP_Server On
+        HTTP_Listen 0.0.0.0
+        HTTP_Port {{ .Values.metricsPort }}
+        Health_Check On
+
+  ## https://docs.fluentbit.io/manual/pipeline/inputs
+  inputs: |
+
+    
+    [INPUT]
+        Name tail
+        Path /var/log/containers/nsa2-*.log
+        #multiline.parser    multiline-parser
+        Tag nsa2.*
+        #Key                 log
+        Path_Key            filePath
+        Mem_Buf_Limit 32MB
+
+  ## https://docs.fluentbit.io/manual/pipeline/filters
+  filters: |
+    #[FILTER]
+    #    Name              parser
+    #    Match             nsa2.*
+    #    # parser            named-capture-test
+    #    Key_Name          log
+    #    # Key_Name          message
+    #    Parser            named-capture-test
+    #    Preserve_Key      true
+    #    Reserve_Data      true
+    
+    [FILTER]
+        Name                    multiline
+        Match                   nsa2.*        
+        multiline.parser        java, multiline-parser
+        multiline.key_content   log
+    
+    #[FILTER]
+    #    Name              record_modifier
+    #    Match             nsa2.*        
+    #    Record hostname ${HOSTNAME}
+
+  ## https://docs.fluentbit.io/manual/pipeline/outputs
+  outputs: |
+
+
+    [OUTPUT]
+        Name es
+        Match nsa2.*
+        Host elasticsearch-master
+        #Logstash_Format On
+        Retry_Limit False
+        Logstash_Prefix      nsa2
+        Trace_Output        On
+        Trace_Error         On
+        Replace_Dots        On
+        Buffer_Size         512M
+        HTTP_User           elastic
+        HTTP_Passwd         ${ELASTIC_PASSWORD}
+        Suppress_Type_Name  On
+        tls                 On
+        tls.verify          On
+        tls.ca_file          /etc/ssl/certs/elasticsearch-master.pem
+  ## https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/classic-mode/upstream-servers
+  ## This configuration is deprecated, please use `extraFiles` instead.
+  upstream: {}
+
+  ## https://docs.fluentbit.io/manual/pipeline/parsers
+  customParsers: |
+    [PARSER]
+        Name          docker_no_time
+        Format        json
+        Time_Keep     Off
+        Time_Key      time
+        Time_Format   %Y-%m-%dT%H:%M:%S.%L
+    
+    [MULTILINE_PARSER]
+        name              multiline-parser
+        type              regex
+        flush_timeout      1000
+        #Skip_Empty_Lines  Off
+
+        # rules |   state name  | regex pattern                    | next state
+        # ------|---------------|----------------------------------|-----------
+        # https://github.com/fluent/fluent-bit/discussions/5430
+        # rule      "start_state"      "/(?<timestamp>[0-9-]+T[:0-9\.]+\d{3}Z)\s+(?<level>[A-Z]+)\s+\d+\s\-{3}\s+\[(?<appName>[\w\-\d]+)\]+\s+\[.*\]+\s+[\w\d\.]*\.(?<loggerClass>[\w\.\d]+)\s+:(?<message>.*)/"  "error_row"
+        # rule      "error_row"        "/^.*$/"                                  "error_row"    
+
+        #rule      "start_state"      "^(?<timestamp>[0-9-]+T[:0-9\.]+\d{3}Z)\s+(?<level>[A-Z]+)\s+\d+\s\-{3}\s+\[(?<appName>[\w\-\d]+)\]+\s+\[.*\]+\s+[\w\d\.]*\.(?<loggerClass>[\w\.\d]+)\s+:(?<message>.*)$"  "error_row"
+        #rule      "error_row"        "^.*$"                                  "error_row"    
+
+        # https://github.com/fluent/fluent-bit/discussions/5430
+        # this works as expected
+        #rule      "start_state"      "/(?<timestamp>[0-9\-]+T[:0-9\.]+\d{3}Z)\s+(?<level>[A-Z]+)\s+\d+\s\-{3}\s+\[(?<appName>[\w\-\d]+)\]+\s+\[.*\]+\s+[\w\d\.]*\.(?<loggerClass>[\w\.\d]+)\s+:(?<message>.*)/"  "cont"
+        #rule      "start_state"      "/(?<timestamp>[\d-]+T[\d:.]+)Z (?<message>[\s\S]*)/m"  "cont"
+        rule      "start_state"      "/([\d-]+T[\d:.]+)Z ([\s\S]*)/m"  "cont"
+        rule      "cont"        "/(?:\s+at\s.*)|(?:[\w$_][\w\d.$:]*.*)$/"                    "cont"
+        #rule      "start_state"      "//"  "cont"
+        # rule      "empty_row"        "/^$/"                                    "error_row"
+        # rule      "error_row"        "/^.*$/"                                  "stacktrace"
+        # rule      "stacktrace"       "/^(\s*at .*|)$/"                            "stacktrace"
+
+    [PARSER]
+        Name named-capture-test
+        Format regex
+        # Regex ^(?<timestamp>[0-9-]+T[:0-9\.]+\d{3}Z)\s+(?<level>[A-Z]+)\s+\d+\s\-{3}\s+\[(?<appName>[\w\-\d]+)\]+\s+\[.*\]+\s+[\w\d\.]*\.(?<loggerClass>[\w\.\d]+)\s+:(?<message>.*)$
+        # Regex ^(?<timestamp>[0-9-]+T[:0-9\.]+\d{3}Z)\s+(?<level>[A-Z]+)\s+\d+\s\-{3}\s+\[(?<appName>[\w\-\d]+)\]+\s+\[.*\]+\s+[\w\d\.]*\.(?<loggerClass>[\w\.\d]+)\s+:(?<message>.*)$
+        # Regex ^(?<TIME>[\d-]+T[\d:.]+)Z\s+(?<LEVEL>[\w]+)\s+(?<MESSAGE>[\s\S]*)$
+        
+        # This works as expected.
+        #Regex /(?<timestamp>[0-9\-]+T[:0-9\.]+\d{3}Z)\s+(?<level>[A-Z]+)\s+\d+\s\-{3}\s+\[(?<appName>[\w\-\d]+)\]+\s+\[.*\]+\s+[\w\d\.]*\.(?<loggerClass>[\w\.\d]+)\s+:(?<message>.*)/m
+        
+        # simplified version
+        # Regex /(?<timestamp>[0-9\-]+T[:0-9\.]+\d{3}Z)\s+(?<message>.*)/m
+        Regex /([0-9\-]+T[:0-9\.]+\d{3}Z)\s+(.*)/m
+        #Regex /(?<timestamp>[\d-]+ [\d:.]+) \[(?<level>[A-Z]+)\] (?:\[[\w\-\d]+\]) (?<message>[\s\S]*)/m
+    
+        #Time_Key timestamp
+        
+        #Time_Format %Y-%m-%dT%H:%M:%S.%LZ
+        # Time_Format %Y-%m-%dT%H:%M:%S.%fZ
+        # Time_Format %Y-%m-%dT%H:%M:%S
+
+
+  # This allows adding more files with arbitrary filenames to /fluent-bit/etc/conf by providing key/value pairs.
+  # The key becomes the filename, the value becomes the file content.
+  extraFiles: {}
+    #     upstream.conf: |
+    #       [UPSTREAM]
+    #           upstream1
+    #
+    #       [NODE]
+    #           name       node-1
+    #           host       127.0.0.1
+    #           port       43000
+    #     example.conf: |
+    #       [OUTPUT]
+    #           Name example
+    #           Match foo.*
+  #           Host bar
+
+
