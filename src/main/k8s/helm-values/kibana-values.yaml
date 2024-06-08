@@ -1,0 +1,15 @@
+elasticsearchCertificateAuthoritiesFile: my-ca.crt
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "400m"
+    memory: "1Gi"
+
+
+protocol: https
+
+nodeSelector:
+  agentpool: depnodes

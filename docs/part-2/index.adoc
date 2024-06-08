@@ -14,6 +14,8 @@ ifndef::env-github[]
 :helmchartdir: ../../src/main/helm/nsa2-logging-example
 endif::[]
 
+== Introduction
+
 In this tutorial, we will be deploying the Spring Boot application to Kubernetes. We will be using the Spring Boot application created in Part 1 of the series. After we create a Docker image of the application, we are going to push it to Docker Hub so that we can use the Docker image on a Kubernetes cluster. We are also going to look at how to deploy the application using the kubectl command, Kubernetes manifest files, and Helm.
 
 === Centralized Logging series
@@ -22,9 +24,10 @@ This tutorial is the second part of the Centralized Logging series. The series c
 
 1. Part 1 - Logging in Spring Boot Application
 2. Part 2 - Deploying Spring Boot Application to Kubernetes
-3. Part 3 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
-4. Part 4 - Centralized Logging with Fluent-bit and Elasticsearch(On-premise)
-5. Part 5 - Log Analysis with Apache Spark
+3. Part 3 - Installing Elasticsearch and Kibana to Kubernetes
+4. Part 4 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
+5. Part 5 - Centralized Logging with Fluent-bit and Elasticsearch(On-premise)
+6. Part 6 - Log Analysis with Apache Spark
 
 === Prerequisites
 
@@ -285,7 +288,7 @@ kubectl run command is used to run a particular image on the Kubernetes cluster.
 To run the application for testing purposes, we can use the kubectl command.
 [source,shell]
 ----
-$ kubectl run --image=credemol/nsa2-logging-example:latest nsa2-logging-example --port=8080 --rm
+$ kubectl run --image=credemol/nsa2-logging-example:latest nsa2-logging-example --port=8080
 ----
 
 To check the running pods, run the following command:

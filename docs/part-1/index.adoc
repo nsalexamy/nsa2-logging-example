@@ -24,9 +24,10 @@ This tutorial is the first part of the Centralized Logging series. The series co
 
 1. Part 1 - Logging in Spring Boot Application
 2. Part 2 - Deploying Spring Boot Application to Kubernetes
-3. Part 3 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
-4. Part 4 - Centralized Logging with Fluent-bit and Elasticsearch(On-premise)
-5. Part 5 - Log Analysis with Apache Spark
+3. Part 3 - Installing Elasticsearch and Kibana to Kubernetes
+4. Part 4 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
+5. Part 5 - Centralized Logging with Fluent-bit and Elasticsearch(On-premise)
+6. Part 6 - Log Analysis with Apache Spark
 
 == Prerequisites
 
