@@ -2,13 +2,12 @@ elasticsearchCertificateAuthoritiesFile: my-ca.crt
 
 resources:
   requests:
-    cpu: "500m"
-    memory: "2Gi"
+    cpu: "100m"
+    memory: "256Mi"
   limits:
-    cpu: "500m"
-    memory: "2Gi"
+    cpu: "400m"
+    memory: "1Gi"
 
-#healthCheckPath: "/api/status"
 
 protocol: https
 

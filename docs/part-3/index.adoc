@@ -1,5 +1,4 @@
-= Part 3 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
-
+= Centralized Logging - Part 3 : Installing Elasticsearch and Kibana
 
 ifdef::env-github[]
 :projectroot: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main
@@ -19,39 +18,29 @@ ifndef::env-github[]
 :imagesdir: ../images
 endif::[]
 
+
 == Introduction
 
-In this tutorial, we will deploy Fluent-bit and Elasticsearch to Kubernetes. Fluent-bit will collect logs from the Spring Boot application and forward them to Elasticsearch. We will use the Helm package manager to deploy Fluent-bit and Elasticsearch to Kubernetes.
+In this tutorial, we will install Elasticsearch and Kibana to Kubernetes. Elasticsearch is a distributed, RESTful search and analytics engine capable of solving a growing number of use cases. Kibana is an open-source data visualization dashboard for Elasticsearch. It provides visualization capabilities on top of the content indexed on an Elasticsearch cluster.
 
-We are going to more focus on how to collect logs from the Spring Boot application and forward them to Elasticsearch. We will not cover the details of Fluent-bit and Elasticsearch in this tutorial.
-
-image::fluentbit-elasticsearch-k8s.png[align="center"]
-
-We are going to run a groups of pods in Kubernetes and all their names will start with `nsa2-`. Fluentbit will collect logs based on their filenames starting with `nsa2-` and forward them to Elasticsearch for indexing. The index name will be `nsa2-{date-string}`.
-
+If you already have any Elasticsearch and Kibana instances available, you can skip this tutorial.
 
 === Centralized Logging series
 
-This tutorial is the third part of the Centralized Logging series. The series covers the following topics:
+This tutorial is the 3rd part of the Centralized Logging series. The series covers the following topics:
 
 1. Part 1 - Logging in Spring Boot Application
 2. Part 2 - Deploying Spring Boot Application to Kubernetes
-3. Part 3 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
-4. Part 4 - Centralized Logging with Fluent-bit and Elasticsearch(On-premise)
-5. Part 5 - Log Analysis with Apache Spark
+3. Part 3 - Installing Elasticsearch and Kibana to Kubernetes
+4. Part 4 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
+5. Part 5 - Centralized Logging with Fluent-bit and Elasticsearch(On-premise)
+6. Part 6 - Log Analysis with Apache Spark
 
-== Prerequisites
 
-Before you begin, ensure you have the following in place:
+== Install Elasticsearch
 
-- A Kubernetes cluster
-- Helm 3 installed
-- kubectl installed
-- A Spring Boot application deployed to Kubernetes
+We are going to install Elasticsearch and Kibana to Kubernetes using Helm in the `logging` namespace. We will create a self-signed certificate for the internal Certificate Authority(CA) and use it to create a self-signed certificate for the Elasticsearch cluster. We will create a secret to store the certificates and another secret to store the Elasticsearch credentials.
 
-== Installation
-
-We will install Elasticsearch, Kibana, and Fluent-bit to Kubernetes using Helm.
 
 === Create a Namespace
 
@@ -61,8 +50,6 @@ Create a namespace for the logging components:
 $ kubectl create namespace logging
 $ kubectl get namespaces
 ----
-
-=== Install Elasticsearch
 
 First, we will install Elasticsearch to Kubernetes using Helm.
 
@@ -75,8 +62,9 @@ $ helm repo list
 $ helm search repo elastic
 ----
 
-==== Create Internal Certificate Authority
-To create an internal Certificate Authority(CA) for Elasticsearch, we will create a self-signed certificate using the `openssl` command.
+==== Create Certificate Authority and Certificates
+
+In this section, we will create a self-signed certificate for the internal Certificate Authority(CA) and use it to create a self-signed certificate for the Elasticsearch cluster.
 
 Here is an example of creating a self-signed certificate for the internal CA:
 
@@ -104,6 +92,7 @@ $ openssl x509 -text -noout -in my-ca.crt | grep CA
 
 
 Now that we have self-signed certificate and key for the internal CA, we will create self-signed certificate for the Elasticsearch cluster.
+This certificate is suitable for development and testing purposes. For production, you should use a certificate signed by a trusted Certificate Authority(CA).
 
 .create a private key for the Elasticsearch cluster
 [source,shell]
@@ -138,7 +127,7 @@ $  openssl x509 -text -noout -in  elasticsearch-master.crt
 $ cat elasticsearch-master.crt my-ca.crt > elasticsearch-master.pem
 ----
 
-This PEM file will be used by clients to connect to the Elasticsearch cluster.
+This PEM file will be used by clients to connect to the Elasticsearch cluster. This will be used in the next tutorials when we configure Fluent-bit to send logs to Elasticsearch.
 
 ==== Create a Secret for the Certificates
 
@@ -177,15 +166,29 @@ $ kubectl create secret generic elasticsearch-master-credentials --from-literal=
 $ kubectl apply -f elasticsearch-master-credentials-secret.yaml
 ----
 
+I have set the username to `elastic` and the password to `changeit`. You can change the password to a secure one.
+
 ==== Install Elasticsearch using Helm on Kubernetes
 
 Now we are ready to install Elasticsearch to Kubernetes using Helm.
+
+The elasticsearch-values.yaml file contains the values for the Elasticsearch Helm chart.
 
 .elasticsearch-values.yaml
 [source,yaml]
 ----
 include::{k8sdir}/helm-values/elasticsearch-values.yaml[]
 ----
+In esConfig, we have the following files:
+
+- "/usr/share/elasticsearch/config/certs/tls.key"
+- "/usr/share/elasticsearch/config/certs/tls.crt"
+- "/usr/share/elasticsearch/config/certs/my-ca.crt"
+
+These files are saved in the elasticsearch-certs secret. These files are mounted to the Elasticsearch container to enable TLS.
+
+And ELASTICSEARCH_USERNAME and ELASTICSEARCH_PASSWORD are set to the values in the elasticsearch-master-credentials secret.
+
 As for resources and volume size, you can adjust them based on your requirements.
 
 [source,shell]
@@ -242,6 +245,19 @@ $ helm uninstall elasticsearch -n logging
 include::{k8sdir}/helm-values/kibana-values.yaml[]
 ----
 
+The default values.yaml file for Kibana is like the one below. Because we have the same secrets defined in values.yaml file, I just need to overwrite `elasticsearchCertificateAuthoritiesFile` to `my-ca.crt`.
+I also set `protocol` to `https` because `elasticsearchHosts` is `https://elasticsearch-master:9200`.
+As for resources, you can adjust them based on your requirements.
+
+.values.yaml file for Kibana
+[source,yaml]
+----
+elasticsearchHosts: "https://elasticsearch-master:9200"
+elasticsearchCertificateSecret: elasticsearch-master-certs
+elasticsearchCertificateAuthoritiesFile: ca.crt
+elasticsearchCredentialSecret: elasticsearch-master-credentials
+----
+
 To install Kibana, run the following command:
 [source,shell]
 ----
@@ -254,6 +270,16 @@ $ helm install kibana elastic/kibana -n logging -f kibana-values.yaml
 ----
 $ helm install kibana elastic/kibana -n logging -f kibana-minikube-values.yaml
 ----
+
+=== Access Kibana
+
+To access Kibana, you need to create a port-forward to the Kibana service.
+[source,shell]
+----
+$ kubectl port-forward service/kibana-kibana 5601:5601 -n logging
+----
+
+Now you can access Kibana at http://localhost:5601. You can log in with the username `elastic` and the password `changeit`.
 
 ==== Clean up
 
@@ -268,504 +294,8 @@ $ echo "serviceaccount role rolebinding job" | tr " " '\n' | xargs -I {} kubectl
 $ echo "serviceaccount role rolebinding job" | tr " " '\n' | xargs -I {} kubectl -n logging delete {}/post-delete-kibana-kibana
 ----
 
-=== Install Fluent-bit
+In addition to uninstalling Kibana, we also delete the configmap , serviceaccounts, roles, rolebindings jobs created by the Helm chart.
 
+== Conclusion
 
-First, we will install Elasticsearch to Kubernetes using Helm.
-
-Add the Elastic Helm repository:
-[source,shell]
-----
-$ helm repo add fluent https://fluent.github.io/helm-charts
-$ helm repo update
-$ helm repo list
-$ helm search repo fluent
-----
-
-
-==== Create ConfigMap having a PEM file for Fluent-bit
-
-In the previous section, we created a PEM file named `elasticsearch-master.pem` for the Elasticsearch cluster. We will create a ConfigMap to store the PEM file for Fluent-bit to use for TLS communication with Elasticsearch.
-
-Create a PEM file for Fluent-bit to use for TLS communication with Elasticsearch:
-[source,shell]
-----
-$ kubectl create configmap elasticsearch-master-ca-store --from-file=elasticsearch-master.pem=elasticsearch-master.pem -n logging
-----
-
-
-==== Parse logs from the Spring Boot application
-
-===== Simple log message
-
-To get useful information from the logs, we need to parse the logs from the Spring Boot application. We will use the default log format of Spring Boot.
-
-.an example of a simple log message
-[source,text]
-----
-2024-05-27T22:14:06.787Z  INFO 1 --- [nsa2-logging-example] [           main] c.a.n.e.l.LoggingExampleApplication      : Application started successfully.
-----
-
-The log message has the following fields:
-
-- Timestamp: 2024-05-27T22:14:06.787Z
-- Log level: INFO
-- PID: 1
-- Application name: nsa2-logging-example
-- Thread: main
-- Logger name: c.a.n.e.l.LoggingExampleApplication
-- Log message: Application started successfully.
-
-We are going to use the following regular expression to parse the log message: By using named capturing groups, we can extract the fields from the log message.
-
-[source,regexp]
-----
-^(?<timestamp>[0-9-]+T[:0-9\.]+\d{3}Z)\s+(?<level>[A-Z]+)\s+\d+\s\-{3}\s+\[(?<appName>[\w\-\d]+)\]+\s+\[\s*(?<thread>[\w\-\d]+)\]+\s+[\w\d\.]*\.(?<loggerClass>[\w\.\d]+)\s+:(?<message>.*)$
-----
-
-With the regular expression, we can extract the following fields from the log message:
-
-|===
-| Group name | Captured value
-
-| timestamp | 2024-05-27T22:14:06.787Z
-| level | INFO
-| appName | nsa2-logging-example
-| thread | main
-| loggerClass | LoggingExampleApplication
-| message | Application started successfully.
-|===
-
-I did not include the PID field in the regular expression because it is not useful on Kubernetes. The PID is the process ID of the application running in the container here. But sometimes, PID might be useful when applications are running On-Prem environment.
-
-NOTE: In this section, I have set level, appName, thread, loggerClass, and message fields to show you how named capturing groups work. But when setting up Fluent-bit, I am not going to use all these fields. I will use only the timestamp and message fields because Fluent-bit send a record in a chunk to Elasticsearch. So those field in a record will not be useful for each log message.
-
-Here is an online regex tester to test the regular expression: https://regex101.com/r/QDPqYB/1
-
-image::regex101-example-1.png[align="center"]
-
-It is handy to test the regular expression before using it in Fluent-bit configuration.
-
-
-==== fluentbit-values.yaml
-
-.fluentbit-values.yaml - env
-[source,yaml]
-----
-env:
-  - name: ELASTIC_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: elasticsearch-master-credentials
-        key: password
-----
-ELASTIC_PASSWORD is the password for the Elasticsearch user. This will be used by Fluent-bit to connect to Elasticsearch.
-
-.fluentbit-values.yaml - extraVolumes
-[source,yaml]
-----
-extraVolumes:
-  - name: elasticsearch-master-ca-store
-    configMap:
-      name: elasticsearch-master-ca-store
-
-extraVolumeMounts:
-  - name: elasticsearch-master-ca-store
-    mountPath: /etc/ssl/certs/elasticsearch-master.pem
-    subPath: elasticsearch-master.pem
-    readOnly: false
-----
-
-Because Elasticsearch 8.5 supports only HTTPS, we need to provide the PEM file to Fluent-bit for TLS communication with Elasticsearch. We will mount the ConfigMap `elasticsearch-master-ca-store` to the path `/etc/ssl/certs/elasticsearch-master.pem` in the Fluent-bit container.
-
-
-.fluentbit-values.yaml - config
-[source,yaml]
-----
-## https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/classic-mode/configuration-file
-config:
-  service:
-  ## https://docs.fluentbit.io/manual/pipeline/inputs
-  inputs:
-
-  filters:
-
-  outputs:
-
-  upstream:
-
-  customParsers:
-
-  extraFiles:
-
-----
-
-In the `config` section, we will provide the configuration for Fluent-bit. We will configure the inputs, filters, and outputs for Fluent-bit.
-
-.fluentbit-values.yaml - config - inputs
-[source,yaml]
-----
-config:
-  inputs: |
-
-    [INPUT]
-        Name tail
-        Path /var/log/containers/nsa2-*.log
-        multiline.parser      multiline-parser
-        Key                 message
-        Path_Key            filePath
-        Tag nsa2.*
-        Mem_Buf_Limit 32MB
-----
-
-All pods whose names start with `nsa2-` will have their logs collected by Fluent-bit. The logs will be collected from the files whose names start with `nsa2-` in the `/var/log/containers` directory. The `multiline.parser` is used to parse the multiline logs. The `message` field will be used as the log message, and the `filePath` field will be used as the log file path. The logs will be tagged with `nsa2.*`.
-
-.fluentbit-values.yaml - config - filters
-[source,yaml]
-----
-config:
-  filters: |
-
-    [FILTER]
-        Name              parser
-        Match             nsa2.*
-        Key_Name          message
-        parser            named-capture-test
-----
-
-For simple log messages, we will use the `parser` filter to parse the log message. The `named-capture-test` parser will be used to parse the log message.
-
-.fluentbit-values.yaml - config - outputs
-[source,yaml]
-----
-config:
-  outputs: |
-
-    [OUTPUT]
-        Name es
-        Match nsa2.*
-        Host elasticsearch-master
-        Logstash_Format On
-        Retry_Limit False
-        Logstash_Prefix      nsa2-
-        Trace_Output        On
-        Trace_Error         On
-        Replace_Dots        On
-        Buffer_Size         512M
-        HTTP_User           elastic
-        HTTP_Passwd         ${ELASTIC_PASSWORD}
-        Suppress_Type_Name  On
-        tls                 On
-        tls.verify          On
-        tls.ca_file          /etc/ssl/certs/elasticsearch-master.pem
-----
-
-The logs tagged with `nsa2.*` will be forwarded to Elasticsearch. The logs will be sent to the `elasticsearch-master` service. The `Logstash_Format` is set to `On` to format the logs in Logstash format. The `HTTP_User` is set to `elastic` and the `HTTP_Passwd` is set to `${ELASTIC_PASSWORD}`. The `tls` is set to `On` to enable TLS communication with Elasticsearch. The `tls.ca_file` is set to `/etc/ssl/certs/elasticsearch-master.pem` to provide the PEM file for TLS communication.
-
-.fluentbit-values.yaml - config - customParsers
-[source,yaml]
-----
-config:
-  customParsers: |
-
-    [PARSER]
-        Name named-capture-test
-        Format regex
-        Regex (?<timestamp>[0-9\-]+T[:0-9\.]+\d{3}Z)\s+(?<level>[A-Z]+)\s+\d+\s\-{3}\s+\[(?<appName>[\w\-\d]+)\]+\s+\[.*\]+\s+[\w\d\.]*\.(?<loggerClass>[\w\.\d]+)\s+:(?<message>.*)
-
-    [MULTILINE_PARSER]
-        name              multiline-parser
-        type              regex
-        flush_timeout      1000
-
-        # rules |   state name  | regex pattern                    | next state
-        # ------|---------------|----------------------------------|-----------
-        # https://github.com/fluent/fluent-bit/discussions/5430
-        rule      "start_state"      "/(?<timestamp>[0-9\-]+T[:0-9\.]+\d{3}Z)\s+(?<level>[A-Z]+)\s+\d+\s\-{3}\s+\[(?<appName>[\w\-\d]+)\]+\s+\[.*\]+\s+[\w\d\.]*\.(?<loggerClass>[\w\.\d]+)\s+:(?<message>.*)/"  "cont"
-        rule      "cont"        "/^(?:\s+at\s.*)|(?:[\w$_][\w\d.$:]*.*)$/"
-
-----
-
-The `named-capture-test` parser will parse the log message using the regular expression. The `multiline-parser` will be used to parse the multiline logs. In Java applications, the stack trace log message might be multiline. The `flush_timeout` is set to `1000` to flush the multiline logs after 1 second.
-
-
-
-NOTE: I have configured for level, appName, loggerClass, and message fields for this example.
-
-==== Multiline parser
-
-- https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/multiline-parsing
-https://docs.fluentbit.io/manual/pipeline/filters/multiline-stacktrace
-- https://docs.fluentbit.io/manual/pipeline/parsers/regular-expression
-- https://docs.fluentbit.io/manual/pipeline/inputs/tail
-
-- https://www.couchbase.com/blog/fluent-bit-tips-tricks-log-forwarding-couchbase/
-- https://github.com/fluent/fluent-bit/issues/5504
-- https://github.com/fluent/fluent-bit/discussions/5430
-
-
-
-Here is an example of a multiline log message:
-[source,text]
-----
-2024-05-28T00:47:38.982Z ERROR 1 --- [nsa2-logging-example] [or-http-epoll-2] c.a.n.e.l.c.LoggingExampleController     : =====> onErrorResume: No enum constant org.slf4j.event.Level.INVALID
-
-java.lang.IllegalArgumentException: No enum constant org.slf4j.event.Level.INVALID
-	at java.base/java.lang.Enum.valueOf(Unknown Source) ~[na:na]
-	at org.slf4j.event.Level.valueOf(Level.java:16) ~[slf4j-api-2.0.13.jar!/:2.0.13]
-	at com.alexamy.nsa2.example.logging.service.LoggingExampleService.lambda$writeLog$0(LoggingExampleService.java:23) ~[!/:0.0.1-SNAPSHOT]
-	at reactor.core.publisher.MonoSupplier$MonoSupplierSubscription.request(MonoSupplier.java:126) ~[reactor-core-3.6.5.jar!/:3.6.5]
-
-... omitted for brevity
-
-	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:997) ~[netty-common-4.1.109.Final.jar!/:4.1.109.Final]
-	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.109.Final.jar!/:4.1.109.Final]
-	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.109.Final.jar!/:4.1.109.Final]
-	at java.base/java.lang.Thread.run(Unknown Source) ~[na:na]
-
-----
-The first line of the log message has the same format as the simple log message. The stack trace is multiline and starts with the `java.lang.IllegalArgumentException` line. The `multiline-parser` will parse the stack trace log message.
-
-==== priorityClass
-
-When deploying a DaemonSet to Kubernetes, you might face the issue of pods pending because of insufficient resources. In that case, you can set the `priorityClass` to the DaemonSet to give it a higher priority so that it can be scheduled to the nodes.
-
-For more information, see the following link:
-https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/
-
-This is an example of how to see the priorityClass in Kubernetes:
-.check the priorityClass
-[source,shell]
-----
-$ kubectl get priorityclass
-
-NAME                      VALUE        GLOBAL-DEFAULT   AGE
-addon-priority            999999       false            4y85d
-high-priority             1000000      false            4y85d
-system-cluster-critical   2000000000   false            4y85d
-system-node-critical      2000001000   false            4y85d
-----
-
-When you don't have a priorityClass in your Kubernetes cluster, you can create a priorityClass with the following command:
-[source,shell]
-----
-$ kubectl apply -f - <<EOF
-
-apiVersion: scheduling.k8s.io/v1
-kind: PriorityClass
-metadata:
-  name: high-priority
-value: 1000000
-globalDefault: false
-description: "This priority class should be used for XYZ service pods only."
-
-EOF
-----
-
-In the `fluentbit-values.yaml`, I have set the `priorityClassName` to `high-priority` to give the Fluent-bit DaemonSet a higher priority.
-
-.fluentbit-values.yaml - priorityClassName
-[source,yaml]
-----
-priorityClassName: "high-priority"
-----
-
-
-
-==== Install Fluent-bit using Helm on Kubernetes
-
-[source,shell]
-----
-$ helm -n logging install fluent-bit fluent/fluent-bit -f fluentbit-values.yaml \
-  --set nodeSelector.agentpool=depnodes
-
-
-----
-
-I added `nodeSelector.agentpool=depnodes` to the Helm command to deploy Fluent-bit to the node pool named `depnodes`. You can remove this option if you do not have a node pool named `depnodes`.
-
-
-
-
-==== Install Fluent-bit using Helm on Minikube
-
-WIP. I will provide the values for Minikube in the next update.
-
-[source,shell]
-----
-$ helm install fluent-bit fluent/fluent-bit -n logging -f fluentbit-values.yaml
-----
-
-==== Uninstall Fluent-bit
-
-To uninstall Fluent-bit, run the following command:
-
-[source,shell]
-----
-$ helm uninstall fluent-bit -n logging
-----
-
-=== Collecting logs from the Spring Boot application
-
-We need to make sure that the applications below are running in Kubernetes:
-
-- Elasticsearch
-- Kibana
-- Fluent-bit
-
-
-Before we collect logs from the Spring Boot application, we need to deploy the Spring Boot application to Kubernetes. We will use the same Spring Boot application that we deployed in Part 2 of the series.
-
-We can use the Helm chart that we created in Part 2 to deploy the Spring Boot application to Kubernetes.
-
-[source,shell]
-----
-$ kubectl create namespace nsa2
-$ helm install nsa2-logging-example src/main/helm/nsa2-logging-example -n nsa2 --set replicaCount=3
-----
-
-=== How a document looks like in Elasticsearch
-
-NOTE: Because Fluent-bit sends log messages in a chunk to Elasticsearch when multiline.parser configuration of a Tail input is configured, the fields in a record will not be useful for each log message. The following examples show how a document looks like in Elasticsearch. The parsing rules defined in the previous section will be updated later
-
-==== Document with a simple log message
-
-[source,json]
-----
-{
-  "@timestamp": "2024-06-06T21:48:27.821Z",
-  "timestamp": "2024-06-06T21:51:13.819Z",
-  "level": "WARN",
-  "appName": "nsa2-logging-example",
-  "loggerClass": "LoggingExampleService",
-  "message": " Writing log - level: WARN, message: This is an WARN log message\n",
-  "log": "2024-06-06T21:51:13.819968386Z stdout F 2024-06-06T21:51:13.819Z  WARN 1 --- [nsa2-logging-example] [or-http-epoll-2] c.a.n.e.l.service.LoggingExampleService  : Writing log - level: WARN, message: This is an WARN log message\n",
-  "filePath": "/var/log/containers/nsa2-logging-example-5c8c465555-lhcss_nsa2_nsa2-logging-example-adc9cb921fb8ae407971d03326a153ada850e6c64a1175a8f6796766035dde97.log"
-}
-
-----
-
-==== Document with chunked log message
-
-[source,json]
-----
-{
-  "@timestamp": "2024-06-06T21:48:27.821Z",
-  "timestamp": "2024-06-06T21:55:29.119Z",
-  "level": "INFO",
-  "appName": "nsa2-logging-example",
-  "loggerClass": "LoggingExampleService",
-  "message": " Writing log - level: WARN, message: This is a sample of WARN level messages\n",
-  "log": "2024-06-06T21:55:29.119686381Z stdout F 2024-06-06T21:55:29.119Z  INFO 1 --- [nsa2-logging-example] [or-http-epoll-3] c.a.n.e.l.service.LoggingExampleService  : Writing log - level: INFO, message: This is a sample of INFO level messages\n2024-06-06T21:55:29.395604417Z stdout F 2024-06-06T21:55:29.395Z  WARN 1 --- [nsa2-logging-example] [or-http-epoll-4] c.a.n.e.l.service.LoggingExampleService  : Writing log - level: WARN, message: This is a sample of WARN level messages\n",
-  "filePath": "/var/log/containers/nsa2-logging-example-5c8c465555-lhcss_nsa2_nsa2-logging-example-adc9cb921fb8ae407971d03326a153ada850e6c64a1175a8f6796766035dde97.log"
-}
-----
-
-As you can see, named capturing groups are not appropriate for chunked log messages. For example, The value of the level field is INFO, but the log message contains both INFO and WARN level messages. The message field contains the log message, but it is not useful for chunked log messages.
-These fine-grained fields are useful for simple log messages when we are not using the multiline.parser configuration of a Tail input. But conventionally Java applications have stack trace log messages that are multiline. So we are using simpler pattern for parsing the log message.
-
-[source,regexp]
-----
-(?<timestamp>[0-9\-]+T[:0-9\.]+\d{3}Z)\s+(?<message>.*)
-----
-This pattern will extract the timestamp and message fields from the log message.
-
-[source,json]
-----
-{
-  "@timestamp": "2024-06-06T22:07:27.554Z",
-  "timestamp": "2024-06-06T22:07:27.554214387Z",
-  "message": "stdout F 2024-06-06T22:07:27.553Z  INFO 1 --- [nsa2-logging-example] [or-http-epoll-4] c.a.n.e.l.service.LoggingExampleService  : Writing log - level: INFO, message: This is a sample of INFO level messages\n2024-06-06T22:07:27.780009745Z stdout F 2024-06-06T22:07:27.779Z  WARN 1 --- [nsa2-logging-example] [or-http-epoll-1] c.a.n.e.l.service.LoggingExampleService  : Writing log - level: WARN, message: This is a sample of WARN level messages",
-  "log": "2024-06-06T22:07:27.554214387Z stdout F 2024-06-06T22:07:27.553Z  INFO 1 --- [nsa2-logging-example] [or-http-epoll-4] c.a.n.e.l.service.LoggingExampleService  : Writing log - level: INFO, message: This is a sample of INFO level messages\n2024-06-06T22:07:27.780009745Z stdout F 2024-06-06T22:07:27.779Z  WARN 1 --- [nsa2-logging-example] [or-http-epoll-1] c.a.n.e.l.service.LoggingExampleService  : Writing log - level: WARN, message: This is a sample of WARN level messages",
-  "filePath": "/var/log/containers/nsa2-logging-example-5c8c465555-lhcss_nsa2_nsa2-logging-example-adc9cb921fb8ae407971d03326a153ada850e6c64a1175a8f6796766035dde97.log"
-}
-----
-
-One step further, I am going to remove timestamp and message fields from the document. Because the timestamp field is already in the @timestamp field and the message field is not useful for chunked log messages.
-
-[source,regexp]
-----
-([0-9\-]+T[:0-9\.]+\d{3}Z)\s+(.*)
-----
-
-
-[source,json]
-----
-{
-  "@timestamp": "2024-06-06T22:17:47.503Z",
-  "log": "2024-06-06T22:17:47.503239291Z stdout F 2024-06-06T22:17:47.502Z  INFO 1 --- [nsa2-logging-example] [or-http-epoll-4] c.a.n.e.l.service.LoggingExampleService  : Writing log - level: INFO, message: This is a sample of INFO level messages\n2024-06-06T22:17:48.010204823Z stdout F 2024-06-06T22:17:48.009Z  WARN 1 --- [nsa2-logging-example] [or-http-epoll-1] c.a.n.e.l.service.LoggingExampleService  : Writing log - level: WARN, message: This is a sample of WARN level messages\n2024-06-06T22:17:48.231040111Z stdout F 2024-06-06T22:17:48.229Z ERROR 1 --- [nsa2-logging-example] [or-http-epoll-2] c.a.n.e.l.service.LoggingExampleService  : Writing log - level: ERROR, message: This is a sample of ERROR level messages\n",
-  "filePath": "/var/log/containers/nsa2-logging-example-5c8c465555-lhcss_nsa2_nsa2-logging-example-adc9cb921fb8ae407971d03326a153ada850e6c64a1175a8f6796766035dde97.log"
-}
-----
-
-This is the final format of the document that will be indexed in Elasticsearch.
-
-==== Updated Parser configuration for Fluent-bit
-
-
-.fluentbit-values.yaml - config - customParsers
-[source,yaml]
-----
-
-  ## https://docs.fluentbit.io/manual/pipeline/parsers
-  customParsers: |
-
-    [MULTILINE_PARSER]
-        name              multiline-parser
-        type              regex
-        flush_timeout      1000
-        #Skip_Empty_Lines  Off
-
-        # rules |   state name  | regex pattern                    | next state
-        # ------|---------------|----------------------------------|-----------
-        rule      "start_state"      "/([\d-]+T[\d:.]+)Z ([\s\S]*)/m"  "cont"
-        rule      "cont"        "/(?:\s+at\s.*)|(?:[\w$_][\w\d.$:]*.*)$/"                    "cont"
-
-
-    [PARSER]
-        Name named-capture-test
-        Format regex
-        Regex /([0-9\-]+T[:0-9\.]+\d{3}Z)\s+(.*)/m
-
-----
-
-
-==== Document with a simple error message
-
-
-When Fluent-bit sends a record to Elasticsearch, it will be indexed in the `nsa2-{date-string}` index. The document will have the following fields:
-
-
-==== Generate logs from the Spring Boot application
-
-To generate 100 logs from the Spring Boot application, we can use the following command:
-[source,shell]
-----
-$ kubectl -n nsa2 port-forward svc/nsa2-logging-example 18080:8080
-
-$ for i in {1..100}; do  curl -X POST -H "Content-Type: application/json" -d "This is an INFO log message - $i" http://localhost:18080/v1.0.0/log/INFO; done
-----
-
-
-[source,shell]
-----
-echo "TRACE DEBUG INFO WARN ERROR" | tr " " '\n' | xargs -I {} curl -X POST -H "Content-Type: application/json" -d "This is a sample of {} level messages" http://localhost:18080/v1.0.0/log/{}
-----
-
-==== Generate a stack trace log message
-
-To generate a stack trace log message from the Spring Boot application, we can use the following command:
-----
-for i in {1..2}; do  curl -X POST -H "Content-Type: application/json" -d "This is n invalid log message - $i" http://localhost:18080/v1.0.0/log/INVALID; done
-----
-
-
-==== View logs in Kibana
-
-To view the logs in Kibana, we need to port-forward the Kibana service to our local machine.
-[source,shell]
-----
-$ kubectl port-forward svc/kibana-kibana 5601:5601 -n logging
-----
-
-Navigate to `http://localhost:5601` in your browser and go to the `Discover` tab in Kibana. You should see the logs from the Spring Boot application.
+In this tutorial, we installed Elasticsearch and Kibana to Kubernetes using Helm. We created a self-signed certificate for the internal Certificate Authority(CA) and used it to create a self-signed certificate for the Elasticsearch cluster. We created a secret to store the certificates and another secret to store the Elasticsearch credentials.

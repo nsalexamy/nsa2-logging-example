@@ -53,26 +53,82 @@ config:
         #multiline.parser    multiline-parser
         Tag nsa2.*
         #Key                 log
-        Path_Key            filePath
+        #Path_Key            filePath
         Mem_Buf_Limit 32MB
+        multiline.parser             cri 
+        #multiline.parser              docker, cri
+        #multiline.parser              multiline-parser
+        #multiline.parser              java
+        Skip_Empty_Lines              On
 
   ## https://docs.fluentbit.io/manual/pipeline/filters
   filters: |
+    [FILTER]
+        Name kubernetes
+        Match nsa2.*
+        #Merge_Log On
+        #Keep_Log Off
+        #K8S-Logging.Parser On
+        #K8S-Logging.Exclude On
+        Labels Off
+        Annotations Off 
+    
+    
+    [FILTER]
+        Name record_modifier
+        Match nsa2.*        
+        Remove_key time
+        Remove_key stream
+        Remove_key _p
+        Remove_key kubernetes
+        #Remove_key $.kubernetes.pod_id
+        #Remove_key $.kubernetes.labels
+        #Remove_key $.kubernetes.docker_id
+        #Remove_key $.kubernetes.container_hash
+   
     #[FILTER]
-    #    Name              parser
-    #    Match             nsa2.*
-    #    # parser            named-capture-test
-    #    Key_Name          log
-    #    # Key_Name          message
-    #    Parser            named-capture-test
-    #    Preserve_Key      true
-    #    Reserve_Data      true
+    #    Name modify
+    #    Match nsa2.*
+    #    Remove time
+    #    Remove stream
+    #    Remove _p
+    #    #Remove $kubernetes['pod_id']
+    #    #Remove $kubernetes['labels']
+    #    #Remove $kubernetes['docker_id']
+    #    #Remove $kubernetes['container_hash']
+    
+    #[FILTER]
+    #    Name nest
+    #    Match nsa2.*
+    #    Operation nest
+    #    #Remove_prefix kubernetes.pod_id
+    #    Remove_prefix kubernetes.labels
+    #    #Remove_prefix kubernetes.docker_id
+    #    #Remove_prefix kubernetes.container_hash 
+    
     
     [FILTER]
         Name                    multiline
         Match                   nsa2.*        
-        multiline.parser        java, multiline-parser
+        #multiline.parser        java, multiline-parser
+        multiline.parser        multiline-parser
         multiline.key_content   log
+
+    [FILTER]
+        Name              parser
+        Match             nsa2.*
+        # parser            named-capture-test
+        Key_Name          log
+        # Key_Name          message
+        Parser            named-capture-test
+        Preserve_Key      true
+        Reserve_Data      true
+    
+    #[FILTER]
+    #    Name                grep
+    #    Match               nsa2.*
+    #    Alias               exclude-empty-log
+    #    Regex               log ^$
     
     #[FILTER]
     #    Name              record_modifier
@@ -87,7 +143,7 @@ config:
         Name es
         Match nsa2.*
         Host elasticsearch-master
-        #Logstash_Format On
+        Logstash_Format On
         Retry_Limit False
         Logstash_Prefix      nsa2
         Trace_Output        On
@@ -117,7 +173,7 @@ config:
         name              multiline-parser
         type              regex
         flush_timeout      1000
-        #Skip_Empty_Lines  Off
+        Skip_Empty_Lines  Off
 
         # rules |   state name  | regex pattern                    | next state
         # ------|---------------|----------------------------------|-----------
@@ -132,8 +188,12 @@ config:
         # this works as expected
         #rule      "start_state"      "/(?<timestamp>[0-9\-]+T[:0-9\.]+\d{3}Z)\s+(?<level>[A-Z]+)\s+\d+\s\-{3}\s+\[(?<appName>[\w\-\d]+)\]+\s+\[.*\]+\s+[\w\d\.]*\.(?<loggerClass>[\w\.\d]+)\s+:(?<message>.*)/"  "cont"
         #rule      "start_state"      "/(?<timestamp>[\d-]+T[\d:.]+)Z (?<message>[\s\S]*)/m"  "cont"
-        rule      "start_state"      "/([\d-]+T[\d:.]+)Z ([\s\S]*)/m"  "cont"
-        rule      "cont"        "/(?:\s+at\s.*)|(?:[\w$_][\w\d.$:]*.*)$/"                    "cont"
+        rule      "start_state"      "/([\d-]+T[\d:.]+)Z ([\s\S]*)/m"  "empty_row"
+        rule      "empty_row"        "/^$/m"                                    "cont"
+        # start with at java class or start with java class name or empty line
+        rule      "cont"        "/(?:\s+at\s.*)|^(?:[a-zA-Z_$][a-zA-Z\d_$]*(\.[a-zA-Z_$][a-zA-Z\d_$]*)*)|^\s*$/m"                    "cont"
+        #rule      "cont"        "/(?:\s+at\s.*)|(?:[\w$_][\w\d.$:]*.*)|^\s*$/m"                    "cont"
+        #rule      "cont"        "/^.*$/"                    "cont"
         #rule      "start_state"      "//"  "cont"
         # rule      "empty_row"        "/^$/"                                    "error_row"
         # rule      "error_row"        "/^.*$/"                                  "stacktrace"
@@ -142,6 +202,7 @@ config:
     [PARSER]
         Name named-capture-test
         Format regex
+        Skip_Empty_Values On  
         # Regex ^(?<timestamp>[0-9-]+T[:0-9\.]+\d{3}Z)\s+(?<level>[A-Z]+)\s+\d+\s\-{3}\s+\[(?<appName>[\w\-\d]+)\]+\s+\[.*\]+\s+[\w\d\.]*\.(?<loggerClass>[\w\.\d]+)\s+:(?<message>.*)$
         # Regex ^(?<timestamp>[0-9-]+T[:0-9\.]+\d{3}Z)\s+(?<level>[A-Z]+)\s+\d+\s\-{3}\s+\[(?<appName>[\w\-\d]+)\]+\s+\[.*\]+\s+[\w\d\.]*\.(?<loggerClass>[\w\.\d]+)\s+:(?<message>.*)$
         # Regex ^(?<TIME>[\d-]+T[\d:.]+)Z\s+(?<LEVEL>[\w]+)\s+(?<MESSAGE>[\s\S]*)$
