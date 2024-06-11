@@ -1,0 +1,953 @@
+= Centralized Logging - Part 5 : Fluent-bit with Elasticsearch(On-premise)
+
+
+ifdef::env-github[]
+:projectroot: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main
+:sourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/java
+:resourcedir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/resources
+:k8sdir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/k8s
+:helmchartdir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/src/main/helm/nsa2-logging-example
+:imagesdir: https://raw.githubusercontent.com/nsalexamy/nsa2-logging-example/main/docs/images
+endif::[]
+
+ifndef::env-github[]
+:projectroot: ../..
+:sourcedir: ../../src/main/java
+:resourcedir: ../../src/main/resources
+:k8sdir: ../../src/main/k8s
+:helmchartdir: ../../src/main/helm/nsa2-logging-example
+:imagesdir: ../images
+endif::[]
+
+== Introduction
+
+Sometimes we still need to run our application on-premise where Kubernetes is not available. In this tutorial, we will deploy Fluent-bit to Linux and Windows VMs. Fluent-bit will collect logs from the Spring Boot application and forward them to Elasticsearch. We will manually install Fluent-bit on both Linux and Windows Server. We do not cover the details of Elasticsearch in this tutorial.
+We are using Ubuntu 22.04 and Windows Server 2019 for this tutorial. The steps should be similar for other operating systems.
+
+
+
+image::fluentbit-elasticsearch-onprem.png[align="center"]
+
+=== Scenario
+
+We are going to run a Spring Boot application on a Linux VM and a Windows Server VM. The applications write log messages to log files in /var/log/nsa2 and C:\Server\log\nsa2 directory respectively. Fluent-bit will collect log messages from those log files and forward them to Elasticsearch. We will manually install Fluent-bit on the VMs. We will also configure Fluent-bit to parse stack trace log messages. We will use the same Elasticsearch and Kibana that we used in the Kubernetes environment. In the end, we will see the log messages in the Kibana dashboard.
+
+
+=== Centralized Logging series
+
+This tutorial is the 5th part of the Centralized Logging series. The series covers the following topics:
+
+1. Part 1 - Logging in Spring Boot Application
+2. Part 2 - Deploying Spring Boot Application to Kubernetes
+3. Part 3 - Installing Elasticsearch and Kibana to Kubernetes
+4. Part 4 - Centralized Logging with Fluent-bit and Elasticsearch(Kubernetes)
+5. Part 5 - Centralized Logging with Fluent-bit and Elasticsearch(On-premise)
+6. Part 6 - Log Analysis with Apache Spark
+
+== Prerequisites
+
+Before you begin, ensure you have the following in place:
+
+- A VM with Ubuntu 22.04 with Java 17 installed
+- A VM with Windows Server 2019 with Java 17 installed
+- Java installed
+- Spring Boot application running on the VMs
+- Elasticsearch installed
+- Kibana installed
+- A PEM file for Fluent-bit to use for TLS communication with Elasticsearch
+
+== Install Fluent-bit on Ubuntu 22.04
+
+=== Step 1: Install Fluent-bit
+
+==== Using install.sh script
+
+
+A simple installation script is provided to be used for most Linux targets. This will always install the most recent version of Fluent Bit available.
+
+.install Fluent-bit
+[source,shell]
+----
+$ curl https://raw.githubusercontent.com/fluent/fluent-bit/master/install.sh | sh
+
+================================
+ Fluent Bit Installation Script
+================================
+This script requires superuser access to install packages.
+You will be prompted for your password by sudo.
+[sudo] password for {your-username}: [Enter your password]
+
+
+$ whereis fluent-bit
+fluent-bit: /usr/lib/fluent-bit /etc/fluent-bit /opt/fluent-bit/bin/fluent-bit
+
+----
+
+Fluent-Bit 3.0.6 on Ubuntu 22.04 shows the following error messages in the log file:
+
+----
+[2024/06/10 19:08:48] [error] [/tmp/fluent-bit/src/flb_scheduler.c:72 errno=2] No such file or directory
+[2024/06/10 19:08:53] [error] [/tmp/fluent-bit/src/flb_scheduler.c:72 errno=2] No such file or directory
+[2024/06/10 19:08:56] [error] [/tmp/fluent-bit/src/flb_scheduler.c:72 errno=0] Success
+[2024/06/10 19:09:11] [error] [/tmp/fluent-bit/src/flb_scheduler.c:72 errno=0] Success
+[2024/06/10 19:09:13] [error] [/tmp/fluent-bit/src/flb_scheduler.c:72 errno=2] No such file or directory
+[2024/06/10 19:09:21] [error] [/tmp/fluent-bit/src/flb_scheduler.c:72 errno=2] No such file or directory
+----
+
+.fluent-bit installation script output
+[%collapsible]
+====
+[source,text]
+----
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  3917  100  3917    0     0   8902      0 --:--:-- --:--:-- --:--:--  8922
+================================
+ Fluent Bit Installation Script
+================================
+This script requires superuser access to install packages.
+You will be prompted for your password by sudo.
+[sudo] password for nsalexamy:
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  3175  100  3175    0     0  14432      0 --:--:-- --:--:-- --:--:-- 14497
+deb [signed-by=/usr/share/keyrings/fluentbit-keyring.gpg] https://packages.fluentbit.io/ubuntu/jammy jammy main
+Ign:1 https://pkg.jenkins.io/debian-stable binary/ InRelease
+Hit:2 https://pkg.jenkins.io/debian-stable binary/ Release
+Get:3 https://packages.microsoft.com/repos/azure-cli jammy InRelease [3,596 B]
+Get:5 https://packages.fluentbit.io/ubuntu/jammy jammy InRelease [7,565 B]
+Hit:6 http://ca.archive.ubuntu.com/ubuntu jammy InRelease
+Get:7 http://security.ubuntu.com/ubuntu jammy-security InRelease [129 kB]
+Get:8 https://packages.microsoft.com/repos/azure-cli jammy/main amd64 Packages [1,620 B]
+Get:9 http://ca.archive.ubuntu.com/ubuntu jammy-updates InRelease [128 kB]
+Get:10 https://packages.fluentbit.io/ubuntu/jammy jammy/main amd64 Packages [20.7 kB]
+Get:11 http://ca.archive.ubuntu.com/ubuntu jammy-backports InRelease [127 kB]
+Get:12 http://ca.archive.ubuntu.com/ubuntu jammy-updates/main amd64 Packages [1,712 kB]
+Get:13 http://ca.archive.ubuntu.com/ubuntu jammy-updates/main Translation-en [316 kB]
+Get:14 http://security.ubuntu.com/ubuntu jammy-security/main amd64 Packages [1,497 kB]
+Get:15 http://ca.archive.ubuntu.com/ubuntu jammy-updates/restricted amd64 Packages [1,966 kB]
+Get:16 http://ca.archive.ubuntu.com/ubuntu jammy-updates/restricted Translation-en [335 kB]
+Get:17 http://ca.archive.ubuntu.com/ubuntu jammy-updates/universe amd64 Packages [1,085 kB]
+Get:18 http://ca.archive.ubuntu.com/ubuntu jammy-updates/universe Translation-en [250 kB]
+Get:19 http://ca.archive.ubuntu.com/ubuntu jammy-updates/multiverse amd64 Packages [43.0 kB]
+Get:20 http://ca.archive.ubuntu.com/ubuntu jammy-updates/multiverse Translation-en [10.7 kB]
+Get:21 http://ca.archive.ubuntu.com/ubuntu jammy-backports/main amd64 Packages [67.1 kB]
+Get:22 http://ca.archive.ubuntu.com/ubuntu jammy-backports/universe amd64 Packages [27.2 kB]
+Get:23 http://ca.archive.ubuntu.com/ubuntu jammy-backports/universe Translation-en [16.3 kB]
+Get:24 http://security.ubuntu.com/ubuntu jammy-security/main Translation-en [257 kB]
+Get:25 http://security.ubuntu.com/ubuntu jammy-security/restricted amd64 Packages [1,910 kB]
+Get:26 http://security.ubuntu.com/ubuntu jammy-security/restricted Translation-en [324 kB]
+Get:27 http://security.ubuntu.com/ubuntu jammy-security/universe amd64 Packages [856 kB]
+Get:28 http://security.ubuntu.com/ubuntu jammy-security/universe Translation-en [165 kB]
+Fetched 11.3 MB in 15s (768 kB/s)
+Reading package lists... Done
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following NEW packages will be installed:
+  fluent-bit
+0 upgraded, 1 newly installed, 0 to remove and 71 not upgraded.
+Need to get 41.6 MB of archives.
+After this operation, 96.0 MB of additional disk space will be used.
+Get:1 https://packages.fluentbit.io/ubuntu/jammy jammy/main amd64 fluent-bit amd64 3.0.6 [41.6 MB]
+Fetched 41.6 MB in 3s (15.2 MB/s)
+Selecting previously unselected package fluent-bit.
+(Reading database ... 163792 files and directories currently installed.)
+Preparing to unpack .../fluent-bit_3.0.6_amd64.deb ...
+Unpacking fluent-bit (3.0.6) ...
+Setting up fluent-bit (3.0.6) ...
+Processing triggers for libc-bin (2.35-0ubuntu3.7) ...
+NEEDRESTART-VER: 3.5
+NEEDRESTART-KCUR: 5.15.0-105-generic
+NEEDRESTART-KEXP: 5.15.0-105-generic
+NEEDRESTART-KSTA: 1
+
+Installation completed. Happy Logging!
+----
+====
+
+Most of the time, the installation script works fine. But when you need to troubleshoot the installation, you can install Fluent-bit manually.
+
+==== Install manually
+
+This section is referring from https://docs.fluentbit.io/manual/installation/linux/ubuntu
+
+Clean up the existing Fluent-bit installation if you have installed it using the installation script.
+
+.remove Fluent-bit installation
+[source,shell]
+----
+$ whereis fluent-bit
+fluent-bit: /usr/lib/fluent-bit /etc/fluent-bit /opt/fluent-bit/bin/fluent-bit
+
+$ sudo apt-get remove --purge fluent-bit
+
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following packages will be REMOVED:
+  fluent-bit*
+0 upgraded, 0 newly installed, 1 to remove and 72 not upgraded.
+After this operation, 96.0 MB disk space will be freed.
+Do you want to continue? [Y/n] Y
+(Reading database ... 163802 files and directories currently installed.)
+Removing fluent-bit (3.0.6) ...
+Processing triggers for libc-bin (2.35-0ubuntu3.7) ...
+(Reading database ... 163796 files and directories currently installed.)
+Purging configuration files for fluent-bit (3.0.6) ...
+dpkg: warning: while removing fluent-bit, directory '/etc/fluent-bit' not empty so not removed
+
+$ sudo rm -rf /etc/fluent-bit
+----
+
+.Get server GPG key
+[source,shell]
+----
+$ sudo sh -c 'curl https://packages.fluentbit.io/fluentbit.key | gpg --dearmor > /usr/share/keyrings/fluentbit-keyring.gpg'
+
+$ ls -l /usr/share/keyrings/fluentbit-keyring.gpg
+
+# or this command also works
+
+$ curl https://packages.fluentbit.io/fluentbit.key | gpg --dearmor > ~/fluentbit-keyring.gpg
+
+$ sudo mv ~/fluentbit-keyring.gpg /usr/share/keyrings/fluentbit-keyring.gpg
+
+$ sudo chown root.root /usr/share/keyrings/fluentbit-keyring.gpg
+----
+
+Export your Ubuntu version to the CODENAME environment variable.
+
+.check Ubuntu version
+[source,shell]
+----
+$ lsb_release -c
+
+Codename:	jammy
+----
+
+.export CODENAME environment variable
+[source,shell]
+----
+$ export CODENAME="jammy"
+----
+
+
+
+You can also find your Ubuntu code name from the /etc/os-release file or the link below:
+
+- https://wiki.ubuntu.com/Releases
+
+===== Update your sources lists
+
+[source,shell]
+----
+$ echo "deb [signed-by=/usr/share/keyrings/fluentbit-keyring.gpg] https://packages.fluentbit.io/ubuntu/${CODENAME} ${CODENAME} main" | sudo tee /etc/apt/sources.list.d/fluent-bit.list > /dev/null
+----
+
+.fluent-bit.list file
+[source,text]
+----
+deb [signed-by=/usr/share/keyrings/fluentbit-keyring.gpg] https://packages.fluentbit.io/ubuntu/jammy jammy main
+----
+
+Now we can install Fluent-bit using the apt-get command.
+
+.install Fluent-bit
+[source,shell]
+----
+$ sudo apt-get update
+$ sudo apt-get install fluent-bit
+----
+
+=== Step 2: Configure Fluent-bit
+Configuration files are located in the */etc/fluent-bit* directory. The main configuration file is *fluent-bit.conf*.
+
+Before starting Fluent-bit as a service, run the command below to see logs from the Fluent-bit service. By default, Fluent-bit writes logs to the console. It is easier to debug Fluent-bit configuration by seeing the logs in the console. We can also configure *log_level* or *log_file* property in *[SERVICE]* section in the Fluent-bit configuration file to change the log level or log file. But for now, we are going to see the logs in the console.
+
+To run Fluent-bit in the console, use the command below:
+[source,shell]
+----
+sudo /opt/fluent-bit/bin/fluent-bit -c /etc/fluent-bit/fluent-bit.conf
+----
+
+You should see CPU usage information in the console. Press Ctrl+C to stop Fluent-bit.
+
+==== Add the tail input plugin
+
+As the first step, let's comment out the CPU input plugin and add the tail input plugin.
+This input plugin reads log files from the specified path.
+
+.fluent-bit.conf file
+[source,toml]
+----
+#[INPUT]
+#    name cpu
+#    tag  cpu.local
+#
+#    # Read interval (sec) Default: 1
+#    interval_sec 1
+
+[INPUT]
+    Name tail
+    Path /var/log/nsa2/nsa2-*.log
+    Tag nsa2.*
+    Key log
+    Mem_Buf_Limit 32MB
+----
+
+The tail input plugin reads log files from /var/log/nsa2 directory. The Path parameter specifies the log file path. The Tag parameter specifies the tag name. The Key parameter specifies the key name for the log message. The Mem_Buf_Limit parameter specifies the memory buffer limit.
+
+And then restart Fluent-bit with the command below:
+
+[source,shell]
+----
+$ sudo /opt/fluent-bit/bin/fluent-bit -c /etc/fluent-bit/fluent-bit.conf
+----
+Still the stdout OUTPUT is configured. We can see the log messages in the console whenever we write log messages to the log files.
+We are going to create a log file named nsa2-test.log in the /var/log/nsa2 directory and write some log messages to the log file.
+
+In a new terminal, run the command below to see the logs from the Fluent-bit service.
+
+[source,shell]
+----
+$ sudo touch /var/log/nsa2/nsa2-test.log
+$ echo "$(date '+%Y-%m-%dT%H:%M:%S.%3NZ')  INFO 1234 - This is test log message" | sudo tee -a /var/log/nsa2/nsa2-test.log
+$ echo "$(date '+%Y-%m-%dT%H:%M:%S.%3NZ')  INFO 1234 - This is test log message" | sudo tee -a /var/log/nsa2/nsa2-test.log
+$ echo "$(date '+%Y-%m-%dT%H:%M:%S.%3NZ')  INFO 1234 - This is test log message" | sudo tee -a /var/log/nsa2/nsa2-test.log
+----
+
+You should see the log messages in the console where Fluent-bit is running.
+[source,shell]
+----
+[0] nsa2.var.log.nsa2.nsa2-test.log: [[1718053734.981113707, {}], {"log"=>"2024-06-10T21:08:54.981Z  INFO 1234 - This is test log message"}]
+[0] nsa2.var.log.nsa2.nsa2-test.log: [[1718053747.952534663, {}], {"log"=>"2024-06-10T21:09:07.948Z  INFO 1234 - This is test log message"}]
+[0] nsa2.var.log.nsa2.nsa2-test.log: [[1718053788.686766718, {}], {"log"=>"2024-06-10T21:09:48.686Z  INFO 1234 - This is test log message"}]
+----
+
+Press Ctrl+C to stop Fluent-bit.
+
+Let's move on to the next step.
+
+==== Add Filters and Custom Parsers
+
+We can add filters to the Fluent-bit configuration file to parse log messages. We can also add custom parsers to parse log messages that are not in the default format.
+
+.fluent-bit.conf file
+[source,toml]
+----
+[SERVICE]
+    ... omitted ...
+    parsers_file parsers.conf
+
+    # Add customer parsers configuration file
+    parsers_file custom_parsers.conf
+
+[INPUT]
+    Name tail
+    Path /var/log/nsa2/nsa2-*.log
+    Tag nsa2.*
+    Key log
+    Mem_Buf_Limit 32MB
+    multiline.parser             multiline-parser
+
+[FILTER]
+    Name              parser
+    Match             nsa2.*
+    Key_Name          log
+    Parser            named-capture-test
+    Preserve_Key      true
+    Reserve_Data      true
+----
+
+I added custom parsers to the custom_parsers.conf file. This file should be added in SERVICE section of fluent-bit.conf file. The custom parsers are used to parse log messages that are not in the default format especially when handling stack traces.
+
+The error message can be simply illustrated as follows:
+
+1. <timestamp> <level> <PID> --- [<appName>] [<thread>] <loggerClass> : <message>
+2. empty line
+3. java class name and error message
+4. stack trace lines starting with at with spaces
+5. empty line
+
+.custom_parser.conf file
+[source,toml]
+----
+[MULTILINE_PARSER]
+        name              multiline-parser
+        type              regex
+        flush_timeout      1000
+        Time_Format       +%Y-%m-%dT%H:%M:%S.%3NZ
+
+        # rules |   state name  | regex pattern                    | next state
+        # ------|---------------|----------------------------------|-----------
+        # https://github.com/fluent/fluent-bit/discussions/5430
+        rule      "start_state"      "/([\d-]+T[\d:.]+)Z ([\s\S]*)/m"  "empty_row"
+        rule      "empty_row"        "/^$/m"                                    "cont"
+        rule      "cont"        "/(?:\s+at\s.*)|^(?:[a-zA-Z_$][a-zA-Z\d_$]*(\.[a-zA-Z_$][a-zA-Z\d_$]*)*)|^\s*$/m"                    "cont"
+
+[PARSER]
+        Name named-capture-test
+        Format regex
+        Regex /^(?<timestamp>([\d\-]{10})T([\d\:]{8}\.\d{3}Z))(.*)/
+        Time_Format +%Y-%m-%dT%H:%M:%S.%3NZ
+
+
+----
+
+In order to test to see if the custom parser is working, I saved the following log message as a file named *dummy-log.txt*. The stack trace messages were modified for testing purposes.
+
+.~/dummy-logs.txt
+[source,text]
+----
+2024-06-10T00:15:15.831Z  INFO 2340 --- [nsa2-logging-example] [main] c.a.n.e.l.LoggingExampleApplication      : Application started successfully.
+2024-06-10T00:15:15.863Z DEBUG 2340 --- [nsa2-logging-example] [main] c.a.n.e.l.LoggingExampleApplication      : This message is shown only in debug mode. It is Mon Jun 10 00:15:15 PDT 2024 now.
+2024-06-10T00:15:39.426Z ERROR 2340 --- [nsa2-logging-example] [reactor-http-nio-2] c.a.n.e.l.c.LoggingExampleController     : =====> onErrorResume: No enum constant org.slf4j.event.Level.INVALID
+
+java.lang.IllegalArgumentException: No enum constant org.slf4j.event.Level.INVALID
+        at java.base/java.lang.Enum.valueOf(Enum.java:273) ~[na:na]
+        at org.slf4j.event.Level.valueOf(Level.java:16) ~[slf4j-api-2.0.13.jar!/:2.0.13]
+        at com.alexamy.nsa2.example.logging.service.LoggingExampleService.lambda$writeLog$0(LoggingExampleService.java:23) ~[!/:0.0.1-SNAPSHOT]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.109.Final.jar!/:4.1.109.Final]
+        at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+
+2024-06-10T00:17:38.349Z ERROR 2340 --- [nsa2-logging-example] [reactor-http-nio-3] c.a.n.e.l.c.LoggingExampleController     : =====> onErrorResume: No enum constant org.slf4j.event.Level.INVALID
+
+java.lang.IllegalArgumentException: No enum constant org.slf4j.event.Level.INVALID
+        at java.base/java.lang.Enum.valueOf(Enum.java:273) ~[na:na]
+        at org.slf4j.event.Level.valueOf(Level.java:16) ~[slf4j-api-2.0.13.jar!/:2.0.13]
+        at com.alexamy.nsa2.example.logging.service.LoggingExampleService.lambda$writeLog$0(LoggingExampleService.java:23) ~[!/:0.0.1-SNAPSHOT]
+        at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.109.Final.jar!/:4.1.109.Final]
+        at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+
+2024-06-10T01:34:10.931Z  INFO 2340 --- [nsa2-logging-example] [reactor-http-nio-2] c.a.n.e.l.service.LoggingExampleService  : Writing log - level: INFO, message: This is an INFO log message
+----
+This is a sample log message that contains two single-line log messages at the beginning and two multiline log messages. The multiline log messages are the stack traces. And each stack trace have two empty lines. And then there is another single-line log message at the end.
+
+I am going to append this log message to the log file named nsa2-test.log. The command will be like this:
+
+[source,shell]
+----
+cat ~/dummy-logs.txt | sudo tee -a /var/log/nsa2/nsa2-test.log > /dev/null
+----
+
+In the console where Fluent-Bit is running, we can see 5 log entries and this is the expected output.
+----
+[0] nsa2.var.log.nsa2.nsa2-test.log: [[1718056464.129513838, {}], {"timestamp"=>"2024-06-10T00:15:15.831Z", "log"=>"2024-06-10T00:15:15.831Z  INFO 2340 --- [nsa2-logging-example] [main] c.a.n.e.l.LoggingExampleApplication      : Application started successfully.
+"}]
+[1] nsa2.var.log.nsa2.nsa2-test.log: [[1718056464.129513838, {}], {"timestamp"=>"2024-06-10T00:15:15.863Z", "log"=>"2024-06-10T00:15:15.863Z DEBUG 2340 --- [nsa2-logging-example] [main] c.a.n.e.l.LoggingExampleApplication      : This message is shown only in debug mode. It is Mon Jun 10 00:15:15 PDT 2024 now.
+"}]
+[2] nsa2.var.log.nsa2.nsa2-test.log: [[1718056464.129513838, {}], {"timestamp"=>"2024-06-10T00:15:39.426Z", "log"=>"2024-06-10T00:15:39.426Z ERROR 2340 --- [nsa2-logging-example] [reactor-http-nio-2] c.a.n.e.l.c.LoggingExampleController     : =====> onErrorResume: No enum constant org.slf4j.event.Level.INVALID
+
+java.lang.IllegalArgumentException: No enum constant org.slf4j.event.Level.INVALID
+	at java.base/java.lang.Enum.valueOf(Enum.java:273) ~[na:na]
+	at org.slf4j.event.Level.valueOf(Level.java:16) ~[slf4j-api-2.0.13.jar!/:2.0.13]
+	at com.alexamy.nsa2.example.logging.service.LoggingExampleService.lambda$writeLog$0(LoggingExampleService.java:23) ~[!/:0.0.1-SNAPSHOT]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.109.Final.jar!/:4.1.109.Final]
+	at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+
+"}]
+[3] nsa2.var.log.nsa2.nsa2-test.log: [[1718056464.129513838, {}], {"timestamp"=>"2024-06-10T00:17:38.349Z", "log"=>"2024-06-10T00:17:38.349Z ERROR 2340 --- [nsa2-logging-example] [reactor-http-nio-3] c.a.n.e.l.c.LoggingExampleController     : =====> onErrorResume: No enum constant org.slf4j.event.Level.INVALID
+
+java.lang.IllegalArgumentException: No enum constant org.slf4j.event.Level.INVALID
+	at java.base/java.lang.Enum.valueOf(Enum.java:273) ~[na:na]
+	at org.slf4j.event.Level.valueOf(Level.java:16) ~[slf4j-api-2.0.13.jar!/:2.0.13]
+	at com.alexamy.nsa2.example.logging.service.LoggingExampleService.lambda$writeLog$0(LoggingExampleService.java:23) ~[!/:0.0.1-SNAPSHOT]
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.109.Final.jar!/:4.1.109.Final]
+	at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+
+"}]
+[0] nsa2.var.log.nsa2.nsa2-test.log: [[1718056464.129513838, {}], {"timestamp"=>"2024-06-10T01:34:10.931Z", "log"=>"2024-06-10T01:34:10.931Z  INFO 2340 --- [nsa2-logging-example] [reactor-http-nio-2] c.a.n.e.l.service.LoggingExampleService  : Writing log - level: INFO, message: This is an INFO log message
+----
+
+Press Ctrl+C to stop Fluent-bit.
+
+==== Add the Elasticsearch output plugin
+
+Last but not least, let's add the Elasticsearch output plugin to the Fluent-bit configuration file.
+
+.fluent-bit.conf file - OUTPUT section
+[source,toml]
+----
+#[OUTPUT]
+#    name  stdout
+#    match *
+
+[OUTPUT]
+    Name es
+    Match nsa2.*
+    Host elasticsearch-master
+    Logstash_Format On
+    Retry_Limit False
+    Logstash_Prefix      nsa2
+    Trace_Output        On
+    Trace_Error         On
+    Replace_Dots        On
+    HTTP_User           elastic
+    HTTP_Passwd         ${ELASTIC_PASSWORD}
+    Suppress_Type_Name  On
+    tls                 On
+    tls.verify          On
+    tls.ca_file          /etc/fluent-bit/elasticsearch-master.logging.pem
+
+----
+
+I commented out the stdout output plugin and added the Elasticsearch output plugin. The Host parameter specifies the Elasticsearch host. The Logstash_Format parameter specifies the Logstash format. The Retry_Limit parameter specifies the retry limit. The Logstash_Prefix parameter specifies the Logstash prefix.
+The PEM files specified here is the same file that we used in the Fluent-bit configuration in the Kubernetes environment.
+
+Please make sure that there is an environment variable named ELASTIC_PASSWORD in the Fluent-bit service file. This variable must be set before starting the Fluent-bit service.
+
+We might get the following error message if we don't set the ELASTIC_PASSWORD environment variable in the Fluent-bit service file.
+----
+[2024/06/10 17:55:22] [ warn] [env] variable ${ELASTIC_PASSWORD} is used but not set
+----
+
+For now, I am going to use the -E option to pass the environment variable to the sudo command.
+
+----
+$ sudo -E ELASTIC_PASSWORD=your-password /opt/fluent-bit/bin/fluent-bit -c /etc/fluent-bit/fluent-bit.conf
+----
+
+
+image::on-prem-kibana-1.png[align="center"]
+
+We can see the log messages in the Kibana dashboard.
+
+Press Ctrl+C to stop Fluent-bit.
+
+==== Enable Fluent-bit service with Systemd
+
+Now that we have configured Fluent-bit correctly, let's enable the Fluent-bit service with Systemd.
+
+.enable Fluent-bit service
+[source,shell]
+----
+$ sudo systemctl enable fluent-bit
+
+Created symlink /etc/systemd/system/multi-user.target.wants/fluent-bit.service → /lib/systemd/system/fluent-bit.service.
+
+$ sudo systemctl status fluent-bit
+○ fluent-bit.service - Fluent Bit
+     Loaded: loaded (/lib/systemd/system/fluent-bit.service; enabled; vendor preset: enabled)
+     Active: inactive (dead)
+       Docs: https://docs.fluentbit.io/manual/
+----
+
+.start Fluent-bit service
+[source,shell]
+----
+$ sudo systemctl start fluent-bit
+
+$ sudo systemctl status fluent-bit
+● fluent-bit.service - Fluent Bit
+     Loaded: loaded (/lib/systemd/system/fluent-bit.service; enabled; vendor preset: enabled)
+     Active: active (running) since Mon 2024-06-10 15:00:46 UTC; 5s ago
+       Docs: https://docs.fluentbit.io/manual/
+   Main PID: 4527 (fluent-bit)
+      Tasks: 4 (limit: 9388)
+     Memory: 3.0M
+        CPU: 58ms
+     CGroup: /system.slice/fluent-bit.service
+             └─4527 /opt/fluent-bit/bin/fluent-bit -c //etc/fluent-bit/fluent-bit.conf
+----
+
+==== Add system environment variables to Fluent-bit service
+
+We can add system environment variables to the Fluent-bit service file. This is useful when we need to pass sensitive information like passwords to Fluent-bit.
+
+===== Set SYSTEMD_EDITOR environment variable
+NOTE: If you are familiar with nano editor, you can skip this step.
+
+The default systemd editor is nano. You can change it to your preferred editor by setting the SYSTEMD_EDITOR environment variable to root's .bashrc file or .profile file.
+I am going to use the vi editor for this tutorial.
+
+.check vi path
+[source,shell]
+----
+$ which vi
+
+/usr/bin/vi
+----
+
+./root/.profile - add SYSTEMD_EDITOR environment variable
+[source,shellscript]
+----
+export SYSTEMD_EDITOR=/usr/bin/vi
+----
+
+When you run sudo command, use the -i option to load the root's .profile file.
+[source,shell]
+----
+$ sudo -i systemctl edit fluent-bit
+----
+
+If you don't want to set the SYSTEMD_EDITOR environment variable in .profile file, you can use -E option to pass the environment variable to the sudo command.
+
+[source,shell]
+----
+$ sudo -E SYSTEMD_EDITOR=/usr/bin/vi systemctl edit fluent-bit
+
+# or this command also works
+$ sudo -E EDITOR=/usr/bin/vi systemctl edit fluent-bit
+----
+
+When you run the command, the systemd service file will be opened in the vi editor and the following content will be displayed:
+
+.edit fluent-bit systemd service file
+[source,shell,linenums]
+----
+### Editing /etc/systemd/system/fluent-bit.service.d/override.conf
+### Anything between here and the comment below will become the new contents of the file
+
+
+
+### Lines below this comment will be discarded
+
+### /lib/systemd/system/fluent-bit.service
+# [Unit]
+# Description=Fluent Bit
+# Documentation=https://docs.fluentbit.io/manual/
+# Requires=network.target
+# After=network.target
+#
+# [Service]
+# Type=simple
+# EnvironmentFile=-/etc/sysconfig/fluent-bit
+# EnvironmentFile=-/etc/default/fluent-bit
+# ExecStart=/opt/fluent-bit/bin/fluent-bit -c //etc/fluent-bit/fluent-bit.conf
+# Restart=always
+#
+# [Install]
+# WantedBy=multi-user.target
+----
+
+===== Add environment variables to the Fluent-bit service file
+The ELASTIC_PASSWORD environment variable is used to authenticate Fluent-bit with Elasticsearch. You can use your own password for the ELASTIC_PASSWORD environment variable.
+
+Between the two comments starting from line number 3 to 5, add the following content:
+
+[source,toml]
+----
+[Service]
+Environment="ELASTIC_PASSWORD=your-password"
+----
+
+I added the ELASTIC_PASSWORD environment variable to the Fluent-bit service file. This variable is used to authenticate Fluent-bit with Elasticsearch. You can use your own password for the ELASTIC_PASSWORD environment variable.
+
+
+After adding the content, save and close the file. Then reload the Fluent-bit service.
+[source,shell]
+----
+$ sudo systemctl restart fluent-bit
+----
+
+We can run the following command again to see if the log messages are sent to Elasticsearch.
+
+[source,shell]
+----
+$ cat ~/dummy-logs.txt | sudo tee -a /var/log/nsa2/nsa2-test.log > /dev/null
+----
+
+== Application Logging
+
+Now it is time to see actual log messages that application generates.
+
+In kubernetes, the log messages can be collected from stdout and stderr. But in On-prem, we need log files for Fluent-bit to collect log messages.
+
+To configure logging in the application, I am going to use the Logback library which is the default logging library that Spring Boot uses. The log messages will be written to the log file named nsa2-logging-example.log.
+
+.config/application.yml
+[source,yaml]
+----
+logging:
+
+  level:
+    root: INFO
+    com.alexamy.nsa2: DEBUG
+
+  file:
+    name: /var/log/nsa2/nsa2-logging-example.log
+
+  logback:
+    rollingpolicy:
+      max-history: 10
+      file-name-pattern: /var/log/nsa2/backup/nsa2-logging-example-%d{yyyy-MM-dd}-%2i.log
+      max-file-size: 5MB
+----
+
+This application.yaml file is saved under config directory to override the default logging configuration. The log messages will be written to the log file named nsa2-logging-example.log. The log files will be rotated when the file size reaches 5MB. The maximum number of log files is 10.
+
+For more information about Spring Boot Externalized Configuration, please refer to the link below:
+
+- https://docs.spring.io/spring-boot/reference/features/external-config.html
+
+==== Start the application
+
+Now that the application is configured, let's start the application.
+
+.run.sh file
+[source,shellscript]
+----
+#!/bin/sh
+
+java -jar nsa2-logging-example-0.0.1-SNAPSHOT.jar --server.port=18080
+----
+
+==== Generate log messages
+
+Now that the application is up and running, we can use the test script to generate log messages as we did before.
+
+[source,shell]
+----
+# To generate single-line log messages
+$ echo "TRACE DEBUG INFO WARN ERROR" | tr " " '\n' | xargs -I {} curl -X POST -H "Content-Type: application/json" -d "This is a sample of {} level messages" http://localhost:18080/v1.0.0/log/{}
+
+# To generate multiline log messages
+for i in {1..2}; do  curl -X POST -H "Content-Type: application/json" -d "This is n invalid log message - $i" http://localhost:18080/v1.0.0/log/INVALID; done
+----
+
+We can see the log messages in the Kibana dashboard.
+
+=== Troubleshooting
+
+While I was configuring Fluent-bit, I encountered some errors. I will share the errors and how to fix them.
+
+==== When using tab between key and value in the configuration file
+
+If you use tab between key and value in the configuration file, you will get the following error:
+----
+[2024/06/10 17:51:53] [error] [config] error in /etc/fluent-bit/fluent-bit.conf:26: undefined value - check config is in valid classic format
+[2024/06/10 17:51:53] [error] configuration file contains errors, aborting.
+----
+
+To fix this error, use spaces instead of tabs between key and value in the configuration file.
+
+==== When missing variables in the configuration file
+When you miss variables in the configuration file, you will get the following error:
+----
+[2024/06/10 17:55:22] [ warn] [env] variable ${ELASTIC_PASSWORD} is used but not set
+----
+
+To fix this error, export the missing variables in the Fluent-bit service file. Or use -E option to pass the environment variable to the sudo command.
+
+
+=== Resources
+
+- https://www.linkedin.com/pulse/fluent-bit-configuration-guide-ubuntu-efficient-log-forwarding-cudje/
+
+
+
+==== How to set environment variables in systemd service
+
+- https://serverfault.com/questions/413397/how-to-set-environment-variable-in-systemd-service
+
+
+
+== Install Fluent-bit on Windows Server 2019
+=== Step 1: Install Fluent-bit
+
+Navigate to https://fluentbit.io/download/ and download the latest version of Fluent-bit. Extract the downloaded file to C:\Server\fluent-bit-3.0.6-win64 directory.
+I chose the Windows version of Fluent-bit for this tutorial.
+
+The directory structure should look like this:
+
+[source,shell]
+----
+C:\Server\fluent-bit-3.0.6-win64
+├───bin
+├───conf
+├───include
+│   ├───fluent-bit
+│   │   ├───config_format
+│   │   ├───tls
+│   │   └───wasm
+│   ├───luajit
+│   └───monkey
+│       └───mk_core
+└───lib
+----
+
+
+==== Windows Service
+
+[source,shell]
+----
+$ sc.exe create fluent-bit-3.0.6 binpath= "C:\Server\fluent-bit-3.0.6-win64\bin\fluent-bit.exe -c C:\Server\fluent-bit-3.0.6-win64\conf\fluent-bit.conf" start= auto
+
+[SC] CreateService SUCCESS
+----
+
+
+=== Step 2: Configure Fluent-bit
+
+Open the configuration file named fluent-bit.conf in C:\Server\fluent-bit-3.0.6-win64\conf directory. Let's remove the default configuration and add the following configuration:
+
+[source,shell]
+----
+[INPUT]
+    Name         winlog
+    Channels     Setup,Windows PowerShell
+    Interval_Sec 1
+
+[OUTPUT]
+    name  stdout
+    match *
+----
+
+The configuration on Windows is pretty much the same as the configuration on Ubuntu. The only difference is when we configure paths. For example, when we configure the path for the log file, we need to use the Windows path format.
+
+[source,toml]
+----
+[INPUT]
+    Name tail
+    Path C:\Server\log\nsa2-*.log
+    Tag nsa2.*
+    Key log
+    Mem_Buf_Limit 32MB
+    multiline.parser             multiline-parser
+
+[OUTPUT]
+    Name es
+    Match nsa2.*
+    Host elasticsearch-master
+    Logstash_Format On
+
+...
+
+    tls.ca_file          C:/Server/fluent-bit-3.0.6-win64/conf/elasticsearch-master.logging.pem
+----
+
+Most of the configuration, we can use either slashes or backslashes. But when we configure the path for the log file for Tail input plugin, we need to use the backslashes.
+
+
+==== How to extract certificates from p12 file
+
+Work in progress
+
+Elasticsearch is using Java keystore files to save the private key and the certificate.
+
+These are the default files that Elasticsearch uses:
+
+- elastic-stack-ca.p12 : Contains the private key.
+- elastic-certificates.p12:Contains the certificates(ca, instance)
+
+We don't need the private key in the Fluent-bit configuration. We only need the certificates. We can extract the certificate from the p12 file using the following command:
+
+.list aliases in the elastic-certificates.p12 file
+[source,shell]
+----
+$ keytool -list -v -keystore elastic-certificates.p12 -storetype PKCS12 | findstr "Alias"
+
+Enter keystore password: [Enter the password]
+Alias name: instance
+Alias name: ca
+----
+
+.export the certificate from the elastic-certificates.p12 file
+[source,shell]
+----
+$ keytool -exportcert -rfc -alias ca -file ca.crt -keystore elastic-certificates.p12 -storetype PKCS12
+
+Enter keystore password:
+Certificate stored in file <ca.crt>
+
+$ keytool -exportcert -rfc -alias instance -file instance.crt -keystore elastic-certificates.p12 -storetype PKCS12
+
+Enter keystore password:
+Certificate stored in file <instance.crt>
+
+$ copy *.crt elastic-certificates.pem
+ca.crt
+instance.crt
+        1 file(s) copied.
+----
+
+.create elastic-certificates.pem file
+[source,shell]
+----
+$ copy *.crt elasticsearch-certificates.pem
+ca.crt
+instance.crt
+        1 file(s) copied.
+----
+
+I will place the elasticsearch-certificates.pem file in the C:\Server\fluent-bit-3.0.6-win64\conf directory.
+
+
+
+=== Step 3: Run Fluent-bit
+
+[source,shell]
+----
+$ bin\fluent-bit.exe -c conf\fluent-bit.conf
+----
+
+
+
+
+==== Date Format Difference depending on the OS
+
+I am not sure if it is because of the different OS or different Java version, but the date format appears different between on the Windows 2019 server and on Ubuntu.
+I just wanted to show you some examples of the date format difference and how can we handle it.
+
+I tested the following code in Windows Server 2019 and Ubuntu 22.04.
+
+.java versions on Windows 2019 server
+[source,shell]
+----
+C:\Server\jdk-17.0.11+9\bin\java.exe --version
+openjdk 17.0.11 2024-04-16 LTS
+OpenJDK Runtime Environment Microsoft-9388408 (build 17.0.11+9-LTS)
+OpenJDK 64-Bit Server VM Microsoft-9388408 (build 17.0.11+9-LTS, mixed mode, sharing)
+----
+
+.java versions on Ubuntu 22.04
+[source,shell]
+----
+openjdk 17.0.10 2024-01-16
+OpenJDK Runtime Environment (build 17.0.10+7-Ubuntu-122.04.1)
+OpenJDK 64-Bit Server VM (build 17.0.10+7-Ubuntu-122.04.1, mixed mode, sharing)
+----
+
+The date format is different between the Windows and Ubuntu. The date format in Windows is like this:
+
+.log message on Windows 2019 server
+[source,shell]
+----
+2024-06-10T16:06:16.135-07:00  INFO 5092 --- [nsa2-logging-example] [main] c.a.n.e.l.LoggingExampleApplication      : Application started successfully.
+----
+
+.log message on Ubuntu 22.04
+[source,shell]
+----
+2024-06-10T18:22:33.615Z  INFO 6326 --- [nsa2-logging-example] [main] c.a.n.e.l.LoggingExampleApplication      : Application started successfully.
+----
+I wanted to set the date format to the same format as the Ubuntu in the Windows server.
+
+We can use the *LOG_DATEFORMAT_PATTERN* environment variable to set the date format in the Fluent-bit configuration file.
+
+As you might remember, *LOG_DATEFORMAT_PATTERN* variable came from the default value of *CONSOLE_LOG_PATTERN* and *FILE_LOG_PATTERN* in the** defaults.xml** file.
+
+Here is some of the code snippet of the default value of CONSOLE_LOG_PATTERN and FILE_LOG_PATTERN in defaults.xml:
+
+[source,xml]
+----
+<property name="CONSOLE_LOG_PATTERN" value="${CONSOLE_LOG_PATTERN:-%clr(%d{${LOG_DATEFORMAT_PATTERN:-yyyy-MM-dd'T'HH:mm:ss.SSSXXX}}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr(%applicationName[%15.15t]){faint} %clr(${LOG_CORRELATION_PATTERN:-}){faint}%clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}}"/>
+
+<property name="FILE_LOG_PATTERN" value="${FILE_LOG_PATTERN:-%d{${LOG_DATEFORMAT_PATTERN:-yyyy-MM-dd'T'HH:mm:ss.SSSXXX}} ${LOG_LEVEL_PATTERN:-%5p} ${PID:- } --- %applicationName[%t] ${LOG_CORRELATION_PATTERN:-}%-40.40logger{39} : %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}}"/>
+----
+
+In the run.cmd file, I passed the LOG_DATEFORMAT_PATTERN environment variable to the Java command. In that way, we can set the date format in the log messages.
+
+.run.cmd file
+[source,shell]
+----
+set JAVA_HOME=C:\Server\jdk-17.0.11+9
+
+%JAVA_HOME%\bin\java.exe -DLOG_DATEFORMAT_PATTERN="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" -jar nsa2-logging-example-0.0.1-SNAPSHOT.jar --server.port=18080
+----
+
+
+== Conclusion
+
+In this tutorial, we learned how to install Fluent-bit on Ubuntu and Windows Server 2019. We also learned how to configure Fluent-bit to collect log messages from the application and send them to Elasticsearch. We also learned how to set environment variables in the Fluent-bit service file. No matter what OS you are using, you can use Fluent-bit to collect log messages from the application and send them to Elasticsearch.
