@@ -1,0 +1,14 @@
+logging:
+
+  level:
+    root: INFO
+    com.alexamy.nsa2: DEBUG
+
+  file:
+    name: C:/Server/log/nsa2/nsa2-logging-example.log
+
+  logback:
+    rollingpolicy:
+      max-history: 10
+      file-name-pattern: C:/Server/log/nsa2/backup/nsa2-logging-example-%d{yyyy-MM-dd}-%2i.log
+      max-file-size: 5MB

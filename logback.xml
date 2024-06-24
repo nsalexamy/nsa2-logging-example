@@ -12,7 +12,6 @@
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>logs/backup/nsa2-logging-example-%d{yyyy-MM-dd}-%2i.log</fileNamePattern>
-<!--            <fileNamePattern>mylog-%d{yyyy-MM-dd}.%i.txt</fileNamePattern>-->
             <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
                 <!-- or whenever the file size reaches 1MB -->
                 <maxFileSize>1MB</maxFileSize>

@@ -874,7 +874,7 @@ echo "TRACE DEBUG INFO WARN ERROR" | tr " " '\n' | xargs -I {} curl -X POST -H "
 
 To generate a stack trace log message from the Spring Boot application, we can use the following command:
 ----
-for i in {1..2}; do  curl -X POST -H "Content-Type: application/json" -d "This is n invalid log message - $i" http://localhost:18080/v1.0.0/log/INVALID; done
+for i in {1..10}; do  curl -X POST -H "Content-Type: application/json" -d "This is n invalid log message - $i" http://localhost:18080/v1.0.0/log/INVALID; done
 ----
 
 
@@ -907,7 +907,7 @@ image::kibana-nsa2-log-1.png[align="center"]
 
 image::kibana-nsa2-log-3.png[align="center"]
 
-I entered `log: error and log: *LoggingExampleController` in KQL text field to filter the logs. It filters the logs that contain the word `error` in the log message and the logs that contain the word `LoggingExampleController` in the log message.
+I entered log: error and log: *LoggingExampleController* in KQL text field to filter the logs. It filters the logs that contain the word `error` in the log message and the logs that contain the word `LoggingExampleController` in the log message.
 You can use different filters to search for logs in the Data View.
 
 == Conclusion
