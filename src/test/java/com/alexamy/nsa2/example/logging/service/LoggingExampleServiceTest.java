@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(MockitoExtension.class)
 class LoggingExampleServiceTest {
 
+    private static final String TEST_MESSAGE = "This is a test message";
     LoggingExampleService loggingService;
 
     @BeforeEach
@@ -25,10 +26,9 @@ class LoggingExampleServiceTest {
     void shouldWriteLogWhenValidLevelAndMessage() {
         // given
         String level = "INFO";
-        String message = "This is a test message";
 
         // when
-        Mono<Boolean> result = loggingService.writeLog(level, message);
+        Mono<Boolean> result = loggingService.writeLog(level, TEST_MESSAGE);
 
         // then
         StepVerifier.create(result)
@@ -44,10 +44,9 @@ class LoggingExampleServiceTest {
     void shouldReturnFalseWhenLowerLevel() {
         // given
         String level = "TRACE";
-        String message = "This is a test message";
 
         // when
-        Mono<Boolean> result = loggingService.writeLog(level, message);
+        Mono<Boolean> result = loggingService.writeLog(level, TEST_MESSAGE);
 
         // then
         StepVerifier.create(result)
@@ -61,10 +60,9 @@ class LoggingExampleServiceTest {
     void shouldThrowExceptionWhenInvalidLevel() {
         // given
         String level = "INVALID";
-        String message = "This is a test message";
 
         // when
-        Mono<Boolean> result = loggingService.writeLog(level, message);
+        Mono<Boolean> result = loggingService.writeLog(level, TEST_MESSAGE);
 
         // then
         StepVerifier.create(result)
