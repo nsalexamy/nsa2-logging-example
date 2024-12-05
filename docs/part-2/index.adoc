@@ -441,7 +441,7 @@ src/main/helm/nsa2-logging-example
 │   ├── serviceaccount.yaml
 │   └── tests
 │       └── test-connection.yaml
-└── values.yaml
+└── opensearch-values.yaml
 ----
 
 We will be using the deployment and service templates from the Helm chart. We will also be using the values.yaml file to add the environment variables.

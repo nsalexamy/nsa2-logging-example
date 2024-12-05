@@ -193,7 +193,7 @@ As for resources and volume size, you can adjust them based on your requirements
 
 [source,shell]
 ----
-$ helm install elasticsearch elastic/elasticsearch -n logging -f elasticsearch-values.yaml
+$ helm install elasticsearch elastic/elasticsearch -n logging -f elasticsearch-opensearch-values.yaml
 
 NAME: elasticsearch
 LAST DEPLOYED: Sun May 26 20:39:00 2024
@@ -261,14 +261,14 @@ elasticsearchCredentialSecret: elasticsearch-master-credentials
 To install Kibana, run the following command:
 [source,shell]
 ----
-$ helm install kibana elastic/kibana -n logging -f kibana-values.yaml
+$ helm install kibana elastic/kibana -n logging -f kibana-opensearch-values.yaml
 ----
 
 ==== Install Kibana on Minikube
 
 [source,shell]
 ----
-$ helm install kibana elastic/kibana -n logging -f kibana-minikube-values.yaml
+$ helm install kibana elastic/kibana -n logging -f kibana-minikube-opensearch-values.yaml
 ----
 
 === Access Kibana

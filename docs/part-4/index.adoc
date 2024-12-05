@@ -446,14 +446,14 @@ The following command will install Fluent-bit to the `logging` namespace.
 
 [source,shell]
 ----
-$ helm -n logging install fluent-bit fluent/fluent-bit -f fluentbit-values.yaml
+$ helm -n logging install fluent-bit fluent/fluent-bit -f fluentbit-opensearch-values.yaml
 ----
 
 ==== Internal purpose.
 
 [source,shell]
 ----
-$ helm -n logging install fluent-bit fluent/fluent-bit -f fluentbit-values.yaml --set nodeSelector.agentpool=depnodes
+$ helm -n logging install fluent-bit fluent/fluent-bit -f fluentbit-opensearch-values.yaml --set nodeSelector.agentpool=depnodes
 ----
 
 I added `nodeSelector.agentpool=depnodes` to the Helm command to deploy Fluent-bit to the node pool named `depnodes`. You can remove this option if you do not have a node pool named `depnodes`.
@@ -465,7 +465,7 @@ WIP. I will provide the values for Minikube in the next update.
 
 [source,shell]
 ----
-$ helm install fluent-bit fluent/fluent-bit -n logging -f fluentbit-values.yaml
+$ helm install fluent-bit fluent/fluent-bit -n logging -f fluentbit-opensearch-values.yaml
 ----
 
 ==== Uninstall Fluent-bit
